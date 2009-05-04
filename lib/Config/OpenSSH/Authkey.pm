@@ -5,7 +5,14 @@ use strict;
 
 our $VERSION = '0.01';
 
-# TODO
+sub new {
+  my $class = shift;
+  my $self  = {};
+  bless $self, $class;
+  return $self;
+}
+
+# TODO parse_fh, parse_file methods?
 
 1;
 
@@ -46,7 +53,7 @@ No known issues.
 
 =head1 SEE ALSO
 
-ssh(1), L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
+sshd(8), L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
 
 =head1 AUTHOR
 
