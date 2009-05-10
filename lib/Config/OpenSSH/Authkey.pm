@@ -1,5 +1,7 @@
 package Config::OpenSSH::Authkey;
 
+require 5.006;
+
 use warnings;
 use strict;
 
