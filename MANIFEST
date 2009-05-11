@@ -4,7 +4,6 @@ LICENSE
 Makefile.PL
 MANIFEST
 README
-t/pod.t
 META.yml
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm
@@ -14,3 +13,6 @@ inc/Module/Install/Metadata.pm
 inc/Module/Install/Win32.pm
 inc/Module/Install/WriteAll.pm
 inc/Module/Install.pm
+t/020-entry.t
+t/040-authkey.t
+t/pod.t
