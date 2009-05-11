@@ -5,7 +5,16 @@ require 5.006;
 use warnings;
 use strict;
 
+use Carp qw(croak);
+use Config::OpenSSH::Authkey::Entry ();
+
 our $VERSION = '0.01';
+
+# TODO OpenSSH only consults the first public key seen in a file.
+# Duplicates, therefore, should be dropped (and if necessary alerted
+# about). However, entries with bad options will be thrown out, so dups
+# must be for "valid" key entries...
+my %seen_keys;
 
 sub new {
   my $class = shift;
@@ -14,7 +23,49 @@ sub new {
   return $self;
 }
 
-# TODO parse_fh, parse_file methods?
+sub parse_file {
+  my ( $self, $file ) = @_;
+
+  my $fh;
+  open( $fh, '<', $file ) or croak($!);
+  parse_fh( $self, $fh );
+}
+
+sub parse_fh {
+  my ( $self, $fh ) = @_;
+
+  while ( my $line = <$fh> ) {
+    # TODO want support to preserve blank lines, comments, order of
+    # public keys in the input data. I'm thinking callbacks to the user.
+    if ( $line =~ m/^\s*$/ ) {
+      warn "skipping blank line at line $.\n";
+      next;
+    }
+    if ( $line =~ m/^\s*#/ ) {
+      warn "skipping commented line at line $.\n";
+      next;
+    }
+
+    eval {
+      my $entry = Config::OpenSSH::Authkey::Entry->new($line);
+
+      my $key = $entry->key;
+      if ( exists $seen_keys{$key} ) {
+        warn "duplicate key at line $.\n";
+      }
+
+      push @{ $self->{_keys} }, $entry;
+      push @{ $seen_keys{$key} }, $#{ $self->{_keys} };
+    };
+    if ($@) {
+      chomp $@;
+      # TODO options to leave alone, or disable unparseable entries
+      warn "skipping unparseable entry at line $.: $@\n";
+    }
+  }
+
+  return $self;
+}
 
 1;
 
