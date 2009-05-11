@@ -7,7 +7,6 @@ use Test::More tests => 4;
 BEGIN { use_ok('Config::OpenSSH::Authkey') }
 ok( defined $Config::OpenSSH::Authkey::VERSION, '$VERSION defined' );
 
-BEGIN { use_ok('Config::OpenSSH::Authkey::Entry') }
-ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
+can_ok( 'Config::OpenSSH::Authkey', qw{new} );
 
 exit 0;
