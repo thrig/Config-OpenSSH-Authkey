@@ -1,3 +1,5 @@
+# -*- Perl -*-
+
 package Config::OpenSSH::Authkey;
 
 require 5.006;

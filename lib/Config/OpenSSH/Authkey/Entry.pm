@@ -1,3 +1,5 @@
+# -*- Perl -*-
+#
 # Representation of individual OpenSSH authorized_keys entries. Based on
 # a study of the sshd(8) manual, along with the OpenSSH 5.2 sources.
 
