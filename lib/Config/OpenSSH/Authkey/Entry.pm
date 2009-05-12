@@ -64,7 +64,7 @@ UBLE: {
     }
 
     # Optional leading options - may contain whitespace inside ""
-    if ( !defined $key and $entry =~ m/ \G (\S+ [ \t]*) /cgx ) {
+    if ( !defined $key and $entry =~ m/ \G ([^ \t]+? [ \t]*) /cgx ) {
       $options .= $1;
 
       redo UBLE;
