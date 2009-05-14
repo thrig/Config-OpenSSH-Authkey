@@ -125,6 +125,11 @@ sub options {
   return $self->{_options};
 }
 
+# TODO may need option for comparison of this object with some other
+# object (or authkey entry, if passed a string)?? (This would compare
+# the key if only the key, or perhaps also the options, though easier to
+# only use the key for starters.)
+
 sub as_string {
   my $self   = shift;
   my $string = q{};
