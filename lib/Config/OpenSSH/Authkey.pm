@@ -17,7 +17,7 @@ my %seen_keys;
 
 sub new {
   my $class = shift;
-  my $self  = {};
+  my $self = { _keys => [] };
   bless $self, $class;
   return $self;
 }
@@ -50,7 +50,7 @@ sub parse_fh {
         my $entry = Config::OpenSSH::Authkey::Entry->new($line);
 
         if ($kill_dups) {
-          next if $seen_keys{ $entry->key }++;
+          die "duplicate\n" if $seen_keys{ $entry->key }++;
         }
 
         if ( $callback_ref->( 'pubkey', $line, $@ ) ) {
@@ -58,7 +58,11 @@ sub parse_fh {
         }
       };
       if ($@) {
-        $callback_ref->( 'unknown', $line, $@ );
+        if ( $@ eq "duplicate\n" ) {
+          $callback_ref->( 'duplicate', $line, $@ );
+        } else {
+          $callback_ref->( 'unknown', $line, $@ );
+        }
       }
     }
   }
@@ -66,8 +70,29 @@ sub parse_fh {
   return $self;
 }
 
+# Directly parse an authorized_keys line (or SSH public key data from
+# somewhere). Will throw an error from Config::OpenSSH::Authkey::Entry
+# if parsing fails.
+sub parse_entry {
+  my ( $self, $line, $kill_dups ) = @_;
+  $kill_dups = 0 if !defined $kill_dups;
+
+  my $entry = Config::OpenSSH::Authkey::Entry->new($line);
+
+  if ($kill_dups) {
+    die "duplicate\n" if $seen_keys{ $entry->key }++;
+  }
+  push @{ $self->{_keys} }, $entry;
+
+  return $entry;
+}
+
 sub keys {
   shift->{_keys};
+}
+
+sub reset {
+  shift->{_keys} = [];
 }
 
 1;
