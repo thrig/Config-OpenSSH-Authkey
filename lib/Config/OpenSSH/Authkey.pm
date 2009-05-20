@@ -82,6 +82,7 @@ sub parse_entry {
   if ($kill_dups) {
     die "duplicate\n" if $seen_keys{ $entry->key }++;
   }
+  # TODO need option or callback to toggle this decision
   push @{ $self->{_keys} }, $entry;
 
   return $entry;
@@ -106,31 +107,90 @@ Config::OpenSSH::Authkey - interface to OpenSSH authorized_keys
 =head1 SYNOPSIS
 
   use Config::OpenSSH::Authkey ();
-
-  TODO
+  my $ak = Config::OpenSSH::Authkey->new;
 
 =head1 DESCRIPTION
 
-TODO
+This module provides an interface to the entries in an OpenSSH
+C<authorzied_keys> file. Both SSH1 and SSH2 protocol public keys are
+supported.
+L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
+provides an interface to each parsed public key.
+
+This is a pure Perl interface, so may differ from how OpenSSH parses the
+C<authorzied_keys> data. The sshd(8) manual and OpenSSH 5.2 source code
+were consulted in the creation of this module.
 
 =head1 METHODS
 
-TODO
+=over 4
+
+=item B<new>
+
+Constructor method. Accepts no arguments.
+
+=item B<parse_fh>
+
+Instance method. Accepts a filehandle, an optional callback CODE
+reference, an a boolean that if true will cause duplicate keys to
+be skipped. TODO error handling??
+
+If the callback CODE reference is C<undef> or not passed, all parsed
+C<authorized_keys> entries will be stored in the object for future use.
+
+Duplicates are checked for by the public key material. This may be a
+different view than what OpenSSH considers a valid key, as OpenSSH will
+use the first matching key that also has valid options, given two
+identical entries where the first has invalid options set. As this
+module does not yet parse option, the first matching public key wins,
+not necessarily a subsequent duplicate key that has valid options set.
+
+=item B<parse_file>
+
+Instance method. Accepts a fully qualified filename (expansion of shell
+type metacharacters such as C<~> is not supported; use
+L<File::HomeDir|File::HomeDir> or similar to perform that expansion),
+opens the file (or croaks), but otherwise passes that filehandle and any
+remaining arguments up to B<parse_fh>.
+
+=item B<parse_entry>
+
+Instance method. Passes data presumed to be an C<authorized_keys> entry
+directly to the
+L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
+module. Useful if the C<authorized_keys> data resides in some other
+source, such as a database, instead of on the filesystem.
+
+Throws an error if parsing fails.
+
+Returns an
+L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry> object.
+
+=item B<keys>
+
+Returns an array reference of any public keys parsed by a B<parse_*>
+instance method.
+
+=item B<reset>
+
+=back
 
 =head1 BUGS
 
 No known bugs.
-  
+
 =head2 Reporting Bugs
-  
+
 Newer versions of this module may be available from CPAN.
-  
+
 If the bug is in the latest version, send a report to the author.
 Patches that fix problems or add new features are welcome.
 
 =head2 Known Issues
 
-No known issues.
+Note that parsing of OpenSSH authorized_keys options (C<command=""> and
+so forth) beyond stashing them into a string is not yet supported. A
+future version of this module may add better support for options.
 
 =head1 SEE ALSO
 
