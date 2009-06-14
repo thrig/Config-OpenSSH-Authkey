@@ -12,7 +12,8 @@ use Config::OpenSSH::Authkey::Entry ();
 
 our $VERSION = '0.01';
 
-# For (optional) duplicate suppression
+# For (optional) duplicate suppression - TODO use tied hash if suitable
+# module available?? Or just do it myself??
 my %seen_keys;
 
 sub new {
@@ -21,6 +22,10 @@ sub new {
   bless $self, $class;
   return $self;
 }
+
+# TODO load vs. parse or iterate to keep the API cleaner?
+
+# TODO method to set duplicate handling (on/off/callback?)
 
 sub parse_file {
   my $self = shift;
