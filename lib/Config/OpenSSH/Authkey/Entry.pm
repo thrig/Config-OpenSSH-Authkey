@@ -61,23 +61,43 @@ OPTION_LEXER: {
       #
       # command - last defined wins
       # environment - one env per environment="", first set wins
-      # from - TODO
+      # from - have not checked this yet.
+      #
+      # Therefore! List of refs, which allows for duplicate options, and
+      # preserves the order of options. Also maintain index to speed
+      # lookups of the data, and to note if duplicate options exist.
+      my $option_name  = $1;
+      my $option_value = $2;
+
+      push @{ $self->{_parsed_options} },
+        { name => $option_name, value => $option_value };
+      push @{ $self->{_parsed_options_index}->{$option_name} },
+        $#{ $self->{_parsed_options} };
 
       redo OPTION_LEXER;
     }
 
     # Boolean options - mere presence enables them in OpenSSH
     if ( $options =~ m/ \G ($AUTHKEY_OPTION_NAME_RE) (?:,|[ \t]+)? /cgx ) {
+      my $option_name = $1;
 
-      # TODO - want means to also preserve option order from input to
-      # output (ideally via a code ref, so folks can use a custom sort,
-      # if desired?
+      push @{ $self->{_parsed_options} }, { name => $option_name };
+      push @{ $self->{_parsed_options_index}->{$option_name} },
+        $#{ $self->{_parsed_options} };
 
       redo OPTION_LEXER;
     }
   }
 
-  return 'TODO';
+  return ( 1, 'ok' );
+};
+
+# Utility routine in event user passes in a complete new options string
+# via the options method.
+my $_clear_parsed_options = sub {
+  my $self = shift;
+  delete $self->{$_} for qw(_parsed_options _parsed_options_index);
+  return 1;
 };
 
 my $_parse_entry = sub {
@@ -231,22 +251,51 @@ sub comment {
 sub options {
   my $self    = shift;
   my $options = shift;
-  my $set_options;
+  my $prefs   = shift || {};
 
-  if ( exists $self->{_parsed_options} ) {
-    die('TODO implement get/set of options after options parsed');
-
-  } elsif ( defined $options ) {
+  if ( defined $options ) {
+    $_clear_parsed_options->($self) if exists $self->{_parsed_options};
     $self->{_options} = $options;
-    $set_options = $options;
+
+    if ( exists $prefs->{parse_options}
+      and $prefs->{parse_options} ) {
+      my ( $is_parsed, $err_msg ) = $_split_options->( $self, $options );
+      if ( !$is_parsed ) {
+        croak($err_msg);
+      }
+    }
   }
 
-  return $set_options;
+  return $self->{_options};
 }
 
 sub get_option {
-  my $self = shift;
-  my $value;
+  my $self        = shift;
+  my $option_name = shift;
+
+  # TODO this block is too oft repeated... how simplify? Use caller
+  # properly to report the error message instead of pass-around-foo?
+  if ( exists $self->{_options} and length $self->{_options} > 0 ) {
+    if ( !exists $self->{_parsed_options} ) {
+      my ( $is_parsed, $err_msg ) =
+        $_split_options->( $self, $self->{_options} );
+      if ( !$is_parsed ) {
+        croak($err_msg);
+      }
+    }
+  }
+
+  return
+    map { $self->{_parsed_options}->[$_]->{value} || 1 }
+    @{ $self->{_parsed_options_index}->{$option_name} };
+}
+
+# Sets an option. To enable a boolean option, only supply the option
+# name, and pass no value data.
+sub set_option {
+  my $self         = shift;
+  my $option_name  = shift;
+  my $option_value = shift;
 
   if ( exists $self->{_options} and length $self->{_options} > 0 ) {
     if ( !exists $self->{_parsed_options} ) {
@@ -256,23 +305,60 @@ sub get_option {
         croak($err_msg);
       }
     }
-    # TODO - now have parsed options, need to lookup the option from the
-    # whatever, return value, if any..
   }
 
-  return $value;
+  if ( exists $self->{_parsed_options_index}->{$option_name} ) {
+    if ( defined $option_value ) {
+      $self->{_parsed_options}
+        ->[ $self->{_parsed_options_index}->{$option_name}->[0] ]->{value} =
+        $option_value;
+    }
+
+    # And wipe any duplicate entries for this option (should be rare)
+    if ( @{ $self->{_parsed_options_index}->{$option_name} } > 1 ) {
+      for my $index ( @{ $self->{_parsed_options_index}->{$option_name} }
+        [ 1 .. $#{ $self->{_parsed_options_index}->{$option_name} } ] ) {
+        splice @{ $self->{_parsed_options} }, $index, 1;
+      }
+      splice @{ $self->{_parsed_options_index}->{$option_name} }, 1;
+    }
+  } else {
+    push @{ $self->{_parsed_options} },
+      {
+      name => $option_name,
+      ( defined $option_value ? ( value => $option_value ) : () )
+      };
+    $self->{_parsed_options_index}->{$option_name} =
+      $#{ $self->{_parsed_options} };
+  }
+
+  return 1;
 }
 
-# TODO how distinguish between boolean and value options? Or don't,
-# and leave it up to the caller to pass no data in for a boolean
-# option? Hrm.
-sub set_option {
-  my $self         = shift;
-  my $option_name  = shift;
-  my $option_value = shift;
+sub unset_option {
+  my $self        = shift;
+  my $option_name = shift;
+  my $count       = 0;
 
-  # parse option string, if any, to internal format. update value or
-  # create new option, depending.
+  if ( exists $self->{_options} and length $self->{_options} > 0 ) {
+    if ( !exists $self->{_parsed_options} ) {
+      my ( $is_parsed, $err_msg ) =
+        $_split_options->( $self, $self->{_options} );
+      if ( !$is_parsed ) {
+        croak($err_msg);
+      }
+    }
+  }
+
+  if ( exists $self->{_parsed_options_index}->{$option_name} ) {
+    for my $index ( @{ $self->{_parsed_options_index}->{$option_name} } ) {
+      splice @{ $self->{_parsed_options} }, $index, 1;
+      ++$count;
+    }
+    delete $self->{_parsed_options_index}->{$option_name};
+  }
+
+  return $count;
 }
 
 sub as_string {
@@ -280,12 +366,17 @@ sub as_string {
   my $string = q{};
 
   if ( exists $self->{_parsed_options} ) {
-    # TODO should this be a as_string on a ::Options object?
-    $string .= 'TODO' . q{ };
+    $string .= join( q{,},
+      map { $_->{name} . ( exists $_->{value} ? '=' . $_->{value} : q{} ) }
+        @{ $self->{_parsed_options} } );
+    $string .= q{ };
+
   } elsif ( exists $self->{_options} and length $self->{_options} > 0 ) {
     $string .= $self->{_options} . q{ };
   }
+
   $string .= $self->{_key};
+
   if ( exists $self->{_comment} and length $self->{_comment} > 0 ) {
     $string .= q{ } . $self->{_comment};
   }
@@ -303,7 +394,8 @@ Config::OpenSSH::Authkey::Entry - authorized_keys entry handler
 
 =head1 SYNOPSIS
 
-  TODO
+  This module may be used in conjunction with
+  L<Config::OpenSSH::Authkey> or by itself. Standalone usage:
 
 =head1 DESCRIPTION
 
