@@ -146,7 +146,8 @@ ENTRY_LEXER: {
     if ( !defined $key
       and $entry =~ m/ \G ( \d{3,5} [ \t]+? \d+ [ \t]+? \d+ ) [ \t]* /cgx ) {
 
-      $key = $1 $keytype = 'rsa1';
+      $key      = $1;
+      $keytype  = 'rsa1';
       $protocol = 1;
 
       redo ENTRY_LEXER;

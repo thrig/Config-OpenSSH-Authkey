@@ -5,18 +5,20 @@
 use warnings;
 use strict;
 
-use Test::More tests => 60;
+use Test::More tests => 59;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey::Entry') }
 ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
 
-can_ok( 'Config::OpenSSH::Authkey::Entry',
-  qw{new key comment protocol options as_string} );
+can_ok(
+  'Config::OpenSSH::Authkey::Entry',
+  qw{new parse key protocol keytype
+    comment unset_comment
+    options unset_options get_option set_option unset_option
+    as_string}
+);
 
 # tests that should fail
-eval { my $foo = Config::OpenSSH::Authkey::Entry->new(); };
-like( $@, qr/no public key data/, 'empty invocation' );
-
 eval { my $foo = Config::OpenSSH::Authkey::Entry->new('# this should fail'); };
 like( $@, qr/no public key data/, 'pass a comment' );
 
