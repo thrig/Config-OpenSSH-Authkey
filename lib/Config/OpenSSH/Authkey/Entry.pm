@@ -53,7 +53,7 @@ my $_split_options = sub {
 OPTION_LEXER: {
     # String Argument Options - value is a perhaps empty string enclosed
     # in doublequotes. Internal doublequotes are allowed, but only if
-    # these are preceeded by a backslash.
+    # these are preceded by a backslash.
     if (
       $options =~ m/ \G ($AUTHKEY_OPTION_NAME_RE)="( (?: \\"|[^"] )*? )"
         (?:,|[ \t]+)? /cgx
@@ -443,7 +443,7 @@ Deletes the comment.
 
 =item B<options> I<optional new option string>
 
-Returns any options set in the entry as a comma seperated value string,
+Returns any options set in the entry as a comma separated value string,
 or, if passed a string, sets that string as the new option set.
 
   # get
