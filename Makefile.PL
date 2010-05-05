@@ -5,6 +5,6 @@ name 'Config-OpenSSH-Authkey';
 all_from 'lib/Config/OpenSSH/Authkey.pm';
 
 # Specific dependencies
-test_requires 'Test::More' => '0.86';
+test_requires 'Test::More' => '0.72';
 
 WriteAll;
