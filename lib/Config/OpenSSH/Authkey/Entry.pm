@@ -13,7 +13,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
@@ -107,7 +107,7 @@ my $_parse_entry = sub {
   my $self = shift;
   my $entry = shift || q{};
 
-  my ( $options, $key, $comment, $protocol );
+  my ( $options, $key, $comment, $protocol, $keytype );
 
   chomp $entry;
 
@@ -122,7 +122,7 @@ my $_parse_entry = sub {
   $entry =~ s/^[ \t]+//;
 
 ENTRY_LEXER: {
-    # Optional trailing comment
+    # Optional trailing comment (user@host, usually)
     if ( defined $key and $entry =~ m/ \G (.+) /cgx ) {
       $comment = $1;
 
@@ -132,9 +132,11 @@ ENTRY_LEXER: {
     # SSH2 RSA or DSA public key
     if ( !defined $key
       and $entry =~
-      m/ \G ( ssh-(?:rsa|dss) [ \t]+? [A-Za-z0-9+\/]+ =* ) [ \t]* /cgx ) {
+      m/ \G ( ssh-(rsa|dss) [ \t]+? [A-Za-z0-9+\/]+ =* ) [ \t]* /cgx ) {
 
-      $key      = $1;
+      $key = $1;
+      # follow the -t argument option to ssh-keygen(1)
+      $keytype = $2 eq 'rsa' ? 'rsa' : 'dsa';
       $protocol = 2;
 
       redo ENTRY_LEXER;
@@ -144,7 +146,7 @@ ENTRY_LEXER: {
     if ( !defined $key
       and $entry =~ m/ \G ( \d{3,5} [ \t]+? \d+ [ \t]+? \d+ ) [ \t]* /cgx ) {
 
-      $key      = $1;
+      $key = $1 $keytype = 'rsa1';
       $protocol = 1;
 
       redo ENTRY_LEXER;
@@ -164,6 +166,7 @@ ENTRY_LEXER: {
   } else {
     $self->{_key}      = $key;
     $self->{_protocol} = $protocol;
+    $self->{_keytype}  = $keytype;
 
     if ( defined $options ) {
       $options =~ s/\s*$//;
@@ -225,11 +228,23 @@ sub parse {
 # Interaction with various elements of the entry...
 
 sub key {
-  shift->{_key};
+  my $self = shift;
+  my $key  = shift;
+  if ( defined $key ) {
+    my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $key );
+    if ( !$is_parsed ) {
+      croak($err_msg);
+    }
+  }
+  return $self->{_key};
 }
 
 sub protocol {
   shift->{_protocol};
+}
+
+sub keytype {
+  shift->{_keytype};
 }
 
 sub comment {
@@ -379,39 +394,137 @@ __END__
 
 =head1 NAME
 
-Config::OpenSSH::Authkey::Entry - authorized_keys entry handler
+Config::OpenSSH::Authkey::Entry - authorized_keys file entry handler
 
 =head1 SYNOPSIS
 
-  This module may be used in conjunction with
-  L<Config::OpenSSH::Authkey> or by itself. Standalone usage:
+This module is used by L<Config::OpenSSH::Authkey>, though can be used
+standalone:
+  
+  my $entry = Config::OpenSSH::Authkey::Entry->new();
+  
+  # assuming $fh is opened to an authorized_keys file...
+  eval {
+    $entry->parse($fh->getline);
+    if ($entry->protocol == 1) {
+      warn "warning: deprecated SSHv1 key detected ...\n";
+    }
+  };
+  ...
 
 =head1 DESCRIPTION
 
-This module parses input OpenSSH authorized_keys lines. TODO
+This module parses lines from OpenSSH C<authorized_keys> files, and
+offers various methods to interact with the data. The B<AUTHORIZED_KEYS
+FILE FORMAT> section of sshd(8) details the format of these lines. I use
+the term entry to mean a line from an C<authorized_keys> file.
+
+Errors are thrown via C<die> or C<croak>, notably when parsing an entry
+via the B<new>, B<parse>, or B<key> methods.
 
 =head1 METHODS
 
-TODO
+=over 4
+
+=item B<new> I<optional entry to parse>
+
+Constructor. Optionally accepts an C<authorized_keys> file entry to
+parse.
+
+=item B<parse> I<entry to parse>
+
+Accepts an C<authorized_keys> file entry to parse. Ideally, either
+B<new> should have an entry passed to it, or B<new> and then B<parse>
+invoked prior to using any of the following methods.
+
+=item B<key> I<optional key to parse>
+
+Returns the public key material. If passed a string, will attempt to
+parse that string as a new key.
+
+=item B<keytype>
+
+Returns the type of the key, either C<rsa1> for a SSHv1 key, or C<rsa>
+or C<dsa> for the two different SSHv2 key types. This is the same format
+as the ssh-keygen(1) C<-t> option accepts.
+
+=item B<protocol>
+
+Returns the major SSH protocol version of the key, 1 or 2.
+
+Note that SSHv1 has been replaced by SSHv2 for over a decade as of 2010.
+I strongly recommend that SSHv1 be disabled.
+
+=item B<comment> I<optional new comment>
+
+Returns the comment, if any, of the parsed entry. ssh-keygen(1) defaults
+to C<user@host> for this field. If a string is passed, updates the
+comment to that string.
+
+=item B<unset_comment>
+
+Deletes the comment.
+
+=item B<options> I<optional new option string>
+
+Returns any options set in the entry as a comma seperated value string,
+or, if passed a string, sets that string as the new option set.
+
+  # get
+  my $option_str = $entry->options();
+  
+  # set
+  $entry->options('from="127.0.0.1",no-agent-forwarding');
+
+=item B<unset_options>
+
+Deletes all the options.
+
+=item B<get_option> I<option name>
+
+Returns the value (or values) for a named option. OpenSSH does allow
+duplicate entries for options, though in most cases this method will
+only return a single value. Options are boolean or string value; boolean
+options return the name of the method, while string options return the
+string value:
+
+  # returns 'no-agent-forwarding'
+  $entry->get_option('no-agent-forwarding');
+  
+  # returns '127.0.0.1'
+  $entry->get_option('from');
+
+=item B<set_option> I<option name>, I<optional value>
+
+Enables an option, or with an additional argument, sets the string value
+for that option.
+
+  # boolean
+  $entry->set_option('no-agent-forwarding');
+  
+  # string value
+  $entry->set_option(from => '127.0.0.1');
+
+=item B<unset_option> I<option name>
+
+Deletes the named option.
+
+=item B<as_string>
+
+Returns the entry formatted as an OpenSSH authorized_keys line.
+
+=back
 
 =head1 BUGS
 
-No known bugs.
-  
-=head2 Reporting Bugs
-  
-Newer versions of this module may be available from CPAN.
+No known bugs. Newer versions of this module may be available from CPAN.
   
 If the bug is in the latest version, send a report to the author.
 Patches that fix problems or add new features are welcome.
 
-=head2 Known Issues
-
-No known issues.
-
 =head1 SEE ALSO
 
-sshd(8), L<Config::OpenSSH::Authkey|Config::OpenSSH::Authkey>
+sshd(8), ssh-keygen(1), L<Config::OpenSSH::Authkey|Config::OpenSSH::Authkey>
 
 =head1 AUTHOR
 
