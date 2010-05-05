@@ -2,9 +2,9 @@
 #
 # Representation of individual OpenSSH authorized_keys entries, based on
 # a study of the sshd(8) manual, along with the OpenSSH 5.2 sources.
-# This module only weakly validates the data presented; in particular,
-# no effort is made to confirm whether the key options are actual valid
-# options for the version of OpenSSH in question.
+# This module only weakly validates the data; in particular, no effort
+# is made to confirm whether the key options are actual valid options
+# for the version of OpenSSH in question.
 
 package Config::OpenSSH::Authkey::Entry;
 
@@ -25,54 +25,47 @@ my $AUTHKEY_OPTION_NAME_RE = qr/(?i)[a-z0-9_-]+/;
 
 ######################################################################
 #
-# Data Parsing Methods - Internal
+# Data Parsing & Utility Methods - Internal
 
 my $_split_options = sub {
   my $self    = shift;
   my $options = shift;
 
+  my $parsed_option_count = 0;
+
   # Inspected OpenSSH auth-options.c,v 1.44 to derive this lexer:
   #
-  # * In OpenSSH, unparsable options result in a call to bad_options and
-  #   the entry being rejected. This module is more permissive, in that
-  #   any option name (any boolean state or any string value) will be
-  #   parsed, regardless of whether OpenSSH supports such an option or
-  #   the type of the option.
+  # In OpenSSH, unparsable options result in a call to bad_options and
+  # the entry being rejected. This module is more permissive, in that
+  # any option name is allowed, regardless of whether OpenSSH supports
+  # such an option or whether the option is the correct type (boolean
+  # vs. string value). This makes the module more future proof, at the
+  # cost of allowing garbage through.
   #
-  # TODO need to delve more into how OpenSSH handles the various
-  # arguments that pass options (e.g. if multiple from="" or etc. exist
-  # in file). Might just throw an error if anything odd found, and let
-  # caller sort things out for the rare(?) bogus entry.
+  # Options are stored using a list of hashrefs, which allows for
+  # duplicate options, and preserves the order of options. Also, an
+  # index is maintained to speed lookups of the data, and to note if
+  # duplicate options exist. This is due to inconsistent handling by
+  # OpenSSH_5.1p1 of command="" vs. from="" vs. environment="" options
+  # when multiple entries are present. Methods are offered to detect and
+  # cleanup such (hopefully rare) duplicate options.
 
 OPTION_LEXER: {
     # String Argument Options - value is a perhaps empty string enclosed
     # in doublequotes. Internal doublequotes are allowed, but only if
     # these are preceeded by a backslash.
     if (
-      $options =~ m/ \G ($AUTHKEY_OPTION_NAME_RE)="( (?: \\"|[^"] )+? )"
+      $options =~ m/ \G ($AUTHKEY_OPTION_NAME_RE)="( (?: \\"|[^"] )*? )"
         (?:,|[ \t]+)? /cgx
       ) {
-
-      # OpenSSH_5.1p1 and options command="echo one",command="echo two"
-      # shows a response of "two". However, multiple from="" causes
-      # logins to fail, if there is one bad entry, regardless of order,
-      # and entry to pass if all the from="" otherwise permit the
-      # connection. :/
-      #
-      # command - last defined wins
-      # environment - one env per environment="", first set wins
-      # from - have not checked this yet.
-      #
-      # Therefore! List of refs, which allows for duplicate options, and
-      # preserves the order of options. Also maintain index to speed
-      # lookups of the data, and to note if duplicate options exist.
-      my $option_name  = $1;
-      my $option_value = $2;
+      my $option_name = $1;
+      my $option_value = $2 || q{};
 
       push @{ $self->{_parsed_options} },
         { name => $option_name, value => $option_value };
       push @{ $self->{_parsed_options_index}->{$option_name} },
         $#{ $self->{_parsed_options} };
+      $parsed_option_count++;
 
       redo OPTION_LEXER;
     }
@@ -85,25 +78,34 @@ OPTION_LEXER: {
       push @{ $self->{_parsed_options_index}->{$option_name} },
         $#{ $self->{_parsed_options} };
 
+      $parsed_option_count++;
       redo OPTION_LEXER;
     }
   }
 
-  return ( 1, 'ok' );
+  $self->{_parsed_options_count} = $parsed_option_count;
+  return 1;
 };
 
 # Utility routine in event user passes in a complete new options string
 # via the options method.
 my $_clear_parsed_options = sub {
   my $self = shift;
-  delete $self->{$_} for qw(_parsed_options _parsed_options_index);
+  delete $self->{$_}
+    for qw(_parsed_options _parsed_options_index _parsed_options_count);
   return 1;
 };
 
+my $_parsed_options_as_string = sub {
+  my $self = shift;
+  return join( q{,},
+    map { $_->{name} . ( exists $_->{value} ? '=' . $_->{value} : q{} ) }
+      @{ $self->{_parsed_options} } );
+};
+
 my $_parse_entry = sub {
-  my $self  = shift;
+  my $self = shift;
   my $entry = shift || q{};
-  my $prefs = shift || {};
 
   my ( $options, $key, $comment, $protocol );
 
@@ -166,15 +168,6 @@ ENTRY_LEXER: {
     if ( defined $options ) {
       $options =~ s/\s*$//;
       $self->{_options} = $options;
-
-      if (  exists $prefs->{parse_options}
-        and $prefs->{parse_options}
-        and length $options > 0 ) {
-        my ( $is_parsed, $err_msg ) = $_split_options->( $self, $options );
-        if ( !$is_parsed ) {
-          return ( 0, $err_msg );
-        }
-      }
     }
 
     if ( defined $comment ) {
@@ -193,12 +186,11 @@ ENTRY_LEXER: {
 sub new {
   my $class = shift;
   my $entry = shift;
-  my $prefs = shift || {};
 
   my $self = {};
 
   if ( defined $entry ) {
-    my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $entry, $prefs );
+    my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $entry );
     if ( !$is_parsed ) {
       croak($err_msg);
     }
@@ -217,19 +209,20 @@ sub new {
 sub parse {
   my $self  = shift;
   my $entry = shift;
-  my $prefs = shift || {};
 
   if ( exists $self->{_key} ) {
     croak('object has already parsed an entry');
   }
 
-  my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $entry, $prefs );
+  my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $entry );
   if ( !$is_parsed ) {
     croak($err_msg);
   }
 
   return $self;
 }
+
+# Interaction with various elements of the entry...
 
 sub key {
   shift->{_key};
@@ -248,45 +241,52 @@ sub comment {
   return $self->{_comment};
 }
 
+sub unset_comment {
+  my $self = shift;
+  delete $self->{_comment};
+  return 1;
+}
+
+# The leading (optional!) options can be dealt with as a string
+# (options, unset_options), or if parsed, as individual options
+# (get_option, set_option, unset_option).
+
 sub options {
   my $self    = shift;
   my $options = shift;
-  my $prefs   = shift || {};
 
   if ( defined $options ) {
-    $_clear_parsed_options->($self) if exists $self->{_parsed_options};
     $self->{_options} = $options;
-
-    if ( exists $prefs->{parse_options}
-      and $prefs->{parse_options} ) {
-      my ( $is_parsed, $err_msg ) = $_split_options->( $self, $options );
-      if ( !$is_parsed ) {
-        croak($err_msg);
-      }
-    }
+    $_clear_parsed_options->($self) if exists $self->{_parsed_options};
   }
 
-  return $self->{_options};
+  return exists $self->{_parsed_options}
+    ? $_parsed_options_as_string->($self)
+    : $self->{_options};
 }
 
+sub unset_options {
+  my $self = shift;
+  $_clear_parsed_options->($self) if exists $self->{_parsed_options};
+  delete $self->{_options};
+  return 1;
+}
+
+# NOTE - boolean return the name of the option, while string value
+# options the string. This may change, depending on how I like how this
+# is handled...
 sub get_option {
   my $self        = shift;
   my $option_name = shift;
 
-  # TODO this block is too oft repeated... how simplify? Use caller
-  # properly to report the error message instead of pass-around-foo?
   if ( exists $self->{_options} and length $self->{_options} > 0 ) {
     if ( !exists $self->{_parsed_options} ) {
-      my ( $is_parsed, $err_msg ) =
-        $_split_options->( $self, $self->{_options} );
-      if ( !$is_parsed ) {
-        croak($err_msg);
-      }
+      $_split_options->( $self, $self->{_options} );
     }
   }
 
   return
-    map { $self->{_parsed_options}->[$_]->{value} || 1 }
+    map { $self->{_parsed_options}->[$_]->{value} || $option_name }
     @{ $self->{_parsed_options_index}->{$option_name} };
 }
 
@@ -294,16 +294,12 @@ sub get_option {
 # name, and pass no value data.
 sub set_option {
   my $self         = shift;
-  my $option_name  = shift;
+  my $option_name  = shift || croak('set_option requires an option name');
   my $option_value = shift;
 
   if ( exists $self->{_options} and length $self->{_options} > 0 ) {
     if ( !exists $self->{_parsed_options} ) {
-      my ( $is_parsed, $err_msg ) =
-        $_split_options->( $self, $self->{_options} );
-      if ( !$is_parsed ) {
-        croak($err_msg);
-      }
+      $_split_options->( $self, $self->{_options} );
     }
   }
 
@@ -342,11 +338,7 @@ sub unset_option {
 
   if ( exists $self->{_options} and length $self->{_options} > 0 ) {
     if ( !exists $self->{_parsed_options} ) {
-      my ( $is_parsed, $err_msg ) =
-        $_split_options->( $self, $self->{_options} );
-      if ( !$is_parsed ) {
-        croak($err_msg);
-      }
+      $_split_options->( $self, $self->{_options} );
     }
   }
 
@@ -366,10 +358,7 @@ sub as_string {
   my $string = q{};
 
   if ( exists $self->{_parsed_options} ) {
-    $string .= join( q{,},
-      map { $_->{name} . ( exists $_->{value} ? '=' . $_->{value} : q{} ) }
-        @{ $self->{_parsed_options} } );
-    $string .= q{ };
+    $string .= $_parsed_options_as_string->($self) . q{ };
 
   } elsif ( exists $self->{_options} and length $self->{_options} > 0 ) {
     $string .= $self->{_options} . q{ };
