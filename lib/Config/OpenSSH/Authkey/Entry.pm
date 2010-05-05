@@ -17,14 +17,68 @@ our $VERSION = '0.02';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
-my $SSH_MAX_PUBKEY_BYTES = 8192;
+my $MAX_PUBKEY_BYTES = 8192;
+
+# Delved from sshd(8), auth-options.c of OpenSSH 5.2. Insensitive match
+# required, as OpenSSH uses strncasecmp(3).
+my $AUTHKEY_OPTION_NAME_RE = qr/(?i)[a-z0-9_-]+/;
 
 ######################################################################
 #
 # Data Parsing Methods - Internal
 
-# TODO should this create a Config::OpenSSH::Authkey::Entry::Options object?
-my $_split_options = sub { my $self = shift; my $options = shift; };
+my $_split_options = sub {
+  my $self    = shift;
+  my $options = shift;
+
+  # Inspected OpenSSH auth-options.c,v 1.44 to derive this lexer:
+  #
+  # * In OpenSSH, unparsable options result in a call to bad_options and
+  #   the entry being rejected. This module is more permissive, in that
+  #   any option name (any boolean state or any string value) will be
+  #   parsed, regardless of whether OpenSSH supports such an option or
+  #   the type of the option.
+  #
+  # TODO need to delve more into how OpenSSH handles the various
+  # arguments that pass options (e.g. if multiple from="" or etc. exist
+  # in file). Might just throw an error if anything odd found, and let
+  # caller sort things out for the rare(?) bogus entry.
+
+OPTION_LEXER: {
+    # String Argument Options - value is a perhaps empty string enclosed
+    # in doublequotes. Internal doublequotes are allowed, but only if
+    # these are preceeded by a backslash.
+    if (
+      $options =~ m/ \G ($AUTHKEY_OPTION_NAME_RE)="( (?: \\"|[^"] )+? )"
+        (?:,|[ \t]+)? /cgx
+      ) {
+
+      # OpenSSH_5.1p1 and options command="echo one",command="echo two"
+      # shows a response of "two". However, multiple from="" causes
+      # logins to fail, if there is one bad entry, regardless of order,
+      # and entry to pass if all the from="" otherwise permit the
+      # connection. :/
+      #
+      # command - last defined wins
+      # environment - one env per environment="", first set wins
+      # from - TODO
+
+      redo OPTION_LEXER;
+    }
+
+    # Boolean options - mere presence enables them in OpenSSH
+    if ( $options =~ m/ \G ($AUTHKEY_OPTION_NAME_RE) (?:,|[ \t]+)? /cgx ) {
+
+      # TODO - want means to also preserve option order from input to
+      # output (ideally via a code ref, so folks can use a custom sort,
+      # if desired?
+
+      redo OPTION_LEXER;
+    }
+  }
+
+  return 'TODO';
+};
 
 my $_parse_entry = sub {
   my $self  = shift;
@@ -37,7 +91,7 @@ my $_parse_entry = sub {
 
   if ( $entry =~ m/^\s*$/ or $entry =~ m/^\s*#/ ) {
     return ( 0, 'no public key data' );
-  } elsif ( length $entry >= $SSH_MAX_PUBKEY_BYTES ) {
+  } elsif ( length $entry >= $MAX_PUBKEY_BYTES ) {
     return ( 0, 'exceeds size limit' );
   }
 
@@ -45,13 +99,12 @@ my $_parse_entry = sub {
   # this optional whitespace to simplify parsing.
   $entry =~ s/^[ \t]+//;
 
-  # Lex-like parser for authorzied_keys entries
-UBLE: {
+ENTRY_LEXER: {
     # Optional trailing comment
     if ( defined $key and $entry =~ m/ \G (.+) /cgx ) {
       $comment = $1;
 
-      last UBLE;
+      last ENTRY_LEXER;
     }
 
     # SSH2 RSA or DSA public key
@@ -62,7 +115,7 @@ UBLE: {
       $key      = $1;
       $protocol = 2;
 
-      redo UBLE;
+      redo ENTRY_LEXER;
     }
 
     # SSH1 RSA public key
@@ -72,14 +125,14 @@ UBLE: {
       $key      = $1;
       $protocol = 1;
 
-      redo UBLE;
+      redo ENTRY_LEXER;
     }
 
     # Optional leading options - may contain whitespace inside ""
     if ( !defined $key and $entry =~ m/ \G ([^ \t]+? [ \t]*) /cgx ) {
       $options .= $1;
 
-      redo UBLE;
+      redo ENTRY_LEXER;
     }
   }
 
@@ -241,85 +294,6 @@ sub as_string {
 }
 
 1;
-
-__DATA__
-
-# Delved from sshd(8), auth-options.c of OpenSSH 5.2. Insensitive match
-# required, as OpenSSH uses strncasecmp(3).
-my %AK_OPTS_ARGV = qw{from 1 command 1 environment 1 permitopen 1 tunnel 1};
-my $AK_OPTS_ARGV_RE = '(?i)' . join( '|', keys %AK_OPTS_ARGV );
-
-# from auth-options.c
-my %AK_OPTS_BOOL =
-  qw{no-port-forwarding 1 no-agent-forwarding 1 no-X11-forwarding 1 no-pty 1 no-user-rc 1};
-my $AK_OPTS_BOOL_RE = '(?i)' . join( '|', keys %AK_OPTS_BOOL );
-
-######################################################################
-#
-# Class methods
-
-sub get_options {
-  my $class = shift;
-  my $type  = shift;
-  my @options;
-
-  if ( $type eq 'boolean' ) {
-    @options = sort keys %AK_OPTS_BOOL;
-  } elsif ( $type eq 'argument' ) {
-    @options = sort keys %AK_OPTS_ARGV;
-  } else {
-    @options = sort ( keys %AK_OPTS_ARGV, keys %AK_OPTS_BOOL );
-  }
-
-  return @options;
-}
-
-
-
-    # Inspected OpenSSH auth-options.c,v 1.44 to derive this regex:
-    # looking for a perhaps empty string enclosed in doublequotes, which
-    # allows internal doublequotes, but only if these are preceeded by a
-    # backslash.
-    #
-    # NOTE Junk options call bad_options and reject the line. Hence the
-    # parsing of options now, instead of deferring that parsing to only
-    # when the options change. Risk is failing on new options added into
-    # new versions of OpenSSH.
-    if (
-      $entry =~ m/ \G ($AK_OPTS_ARGV_RE)="( (?: \\"|[^"] )+? )"
-        (?:,|[ \t]+)? /cgx
-      ) {
-      # OpenSSH_5.1p1 and options command="echo one",command="echo two"
-      # shows a response of "two". However, multiple from="" causes
-      # logins to fail, if there is one bad entry, regardless of order,
-      # and entry to pass if all the from="" otherwise permit the
-      # connection. :/
-      #
-      # command - last defined wins
-      # environment - one env per environment="", first set wins
-      # from - TODO
-      #
-      # TODO also need instance and global defaults for "mess not with
-      # options" so can support use-cases where folks don't want the
-      # options played with.
-      #
-      # Also must set is_changed if mess with the options here!
-      #
-      # So really must go inspect the OpenSSH source code to learn how
-      # to handle these options...
-      $self->{_options}->{$1} = $2;
-      push @{ $self->{_opt_order} }, $1;
-
-      redo UBLE;
-    }
-
-    # Boolean options
-    if ( $entry =~ m/ \G ($AK_OPTS_BOOL_RE) (?:,|[ \t]+)? /cgx ) {
-      $self->{_options}->{$1} = undef;
-      push @{ $self->{_opt_order} }, $1;
-
-      redo UBLE;
-    }
 
 __END__
 
