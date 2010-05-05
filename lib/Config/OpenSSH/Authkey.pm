@@ -4,13 +4,13 @@ package Config::OpenSSH::Authkey;
 
 require 5.006;
 
-use warnings;
 use strict;
+use warnings;
 
 use Carp qw(croak);
 use Config::OpenSSH::Authkey::Entry ();
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 # For (optional) duplicate suppression - TODO use tied hash if suitable
 # module available?? Or just do it myself??
