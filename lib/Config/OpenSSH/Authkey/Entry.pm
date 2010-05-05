@@ -208,26 +208,6 @@ sub new {
 #
 # Instance methods
 
-# Utility method for folks who want to do a ->new and then at some later
-# point throw an entry onto the object.
-sub parse {
-  my $self  = shift;
-  my $entry = shift;
-
-  if ( exists $self->{_key} ) {
-    croak('object has already parsed an entry');
-  }
-
-  my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $entry );
-  if ( !$is_parsed ) {
-    croak($err_msg);
-  }
-
-  return $self;
-}
-
-# Interaction with various elements of the entry...
-
 sub key {
   my $self = shift;
   my $key  = shift;
@@ -406,7 +386,7 @@ standalone:
   
   # assuming $fh is opened to an authorized_keys file...
   eval {
-    $entry->parse($fh->getline);
+    $entry->key($fh->getline);
     if ($entry->protocol == 1) {
       warn "warning: deprecated SSHv1 key detected ...\n";
     }
@@ -421,7 +401,7 @@ FILE FORMAT> section of sshd(8) details the format of these lines. I use
 the term entry to mean a line from an C<authorized_keys> file.
 
 Errors are thrown via C<die> or C<croak>, notably when parsing an entry
-via the B<new>, B<parse>, or B<key> methods.
+via the B<new> or B<key> methods.
 
 =head1 METHODS
 
@@ -432,16 +412,11 @@ via the B<new>, B<parse>, or B<key> methods.
 Constructor. Optionally accepts an C<authorized_keys> file entry to
 parse.
 
-=item B<parse> I<entry to parse>
-
-Accepts an C<authorized_keys> file entry to parse. Ideally, either
-B<new> should have an entry passed to it, or B<new> and then B<parse>
-invoked prior to using any of the following methods.
-
 =item B<key> I<optional key to parse>
 
 Returns the public key material. If passed a string, will attempt to
-parse that string as a new key.
+parse that string as a new key (and options, and comment, if those
+are present).
 
 =item B<keytype>
 

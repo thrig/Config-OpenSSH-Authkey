@@ -12,10 +12,9 @@ ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
 
 can_ok(
   'Config::OpenSSH::Authkey::Entry',
-  qw{new parse key protocol keytype
+  qw{new key protocol keytype as_string
     comment unset_comment
-    options unset_options get_option set_option unset_option
-    as_string}
+    options unset_options get_option set_option unset_option}
 );
 
 # tests that should fail
