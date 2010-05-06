@@ -98,9 +98,13 @@ my $_clear_parsed_options = sub {
 
 my $_parsed_options_as_string = sub {
   my $self = shift;
-  return join( q{,},
-    map { $_->{name} . ( exists $_->{value} ? '=' . $_->{value} : q{} ) }
-      @{ $self->{_parsed_options} } );
+  return join(
+    q{,},
+    map {
+      $_->{name}
+        . ( exists $_->{value} ? '="' . $_->{value} . '"' : q{} )
+      } @{ $self->{_parsed_options} }
+  );
 };
 
 my $_parse_entry = sub {
