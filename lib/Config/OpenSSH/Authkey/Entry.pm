@@ -13,7 +13,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.03';
+our $VERSION = '0.05';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
@@ -30,8 +30,6 @@ my $AUTHKEY_OPTION_NAME_RE = qr/(?i)[a-z0-9_-]+/;
 my $_split_options = sub {
   my $self    = shift;
   my $options = shift;
-
-  my $parsed_option_count = 0;
 
   # Inspected OpenSSH auth-options.c,v 1.44 to derive this lexer:
   #
@@ -63,9 +61,6 @@ OPTION_LEXER: {
 
       push @{ $self->{_parsed_options} },
         { name => $option_name, value => $option_value };
-      push @{ $self->{_parsed_options_index}->{$option_name} },
-        $#{ $self->{_parsed_options} };
-      $parsed_option_count++;
 
       redo OPTION_LEXER;
     }
@@ -75,25 +70,12 @@ OPTION_LEXER: {
       my $option_name = $1;
 
       push @{ $self->{_parsed_options} }, { name => $option_name };
-      push @{ $self->{_parsed_options_index}->{$option_name} },
-        $#{ $self->{_parsed_options} };
 
-      $parsed_option_count++;
       redo OPTION_LEXER;
     }
   }
 
-  $self->{_parsed_options_count} = $parsed_option_count;
-  return $parsed_option_count;
-};
-
-# Utility routine in event user passes in a complete new options string
-# via the options method.
-my $_clear_parsed_options = sub {
-  my $self = shift;
-  delete $self->{$_}
-    for qw(_parsed_options _parsed_options_index _parsed_options_count);
-  return 1;
+  return scalar @{ $self->{_parsed_options} };
 };
 
 my $_parsed_options_as_string = sub {
@@ -252,12 +234,12 @@ sub unset_comment {
 # (get_option, set_option, unset_option).
 
 sub options {
-  my $self    = shift;
-  my $options = shift;
+  my $self        = shift;
+  my $new_options = shift;
 
-  if ( defined $options ) {
-    $self->{_options} = $options;
-    $_clear_parsed_options->($self) if exists $self->{_parsed_options};
+  if ( defined $new_options ) {
+    delete $self->{_parsed_options};
+    $self->{_options} = $new_options;
   }
 
   return exists $self->{_parsed_options}
@@ -267,7 +249,7 @@ sub options {
 
 sub unset_options {
   my $self = shift;
-  $_clear_parsed_options->($self) if exists $self->{_parsed_options};
+  delete $self->{_parsed_options};
   delete $self->{_options};
   return 1;
 }
@@ -278,7 +260,6 @@ sub unset_options {
 sub get_option {
   my $self        = shift;
   my $option_name = shift;
-  my @values;
 
   if ( exists $self->{_options} and length $self->{_options} > 0 ) {
     if ( !exists $self->{_parsed_options} ) {
@@ -286,11 +267,9 @@ sub get_option {
     }
   }
 
-  if ( exists $self->{_parsed_options_index}->{$option_name} ) {
-    @values =
-      map { $self->{_parsed_options}->[$_]->{value} || $option_name }
-      @{ $self->{_parsed_options_index}->{$option_name} };
-  }
+  my @values =
+    map { $_->{value} || $option_name }
+    grep { $_->{name} eq $option_name } @{ $self->{_parsed_options} };
 
   return wantarray ? @values : $values[0];
 }
@@ -308,38 +287,38 @@ sub set_option {
     }
   }
 
-  if ( exists $self->{_parsed_options_index}->{$option_name} ) {
-    if ( defined $option_value ) {
-      $self->{_parsed_options}
-        ->[ $self->{_parsed_options_index}->{$option_name}->[0] ]->{value} =
-        $option_value;
-    }
+  my $updated      = 0;
+  my $record_count = scalar @{ $self->{_parsed_options} };
 
-    # And wipe any duplicate entries for this option (should be rare)
-    if ( @{ $self->{_parsed_options_index}->{$option_name} } > 1 ) {
-      for my $index ( @{ $self->{_parsed_options_index}->{$option_name} }
-        [ 1 .. $#{ $self->{_parsed_options_index}->{$option_name} } ] ) {
-        splice @{ $self->{_parsed_options} }, $index, 1;
-      }
-      splice @{ $self->{_parsed_options_index}->{$option_name} }, 1;
+  for my $options_ref ( @{ $self->{_parsed_options} } ) {
+    if ( $options_ref->{name} eq $option_name ) {
+      $options_ref->{value} = $option_value if defined $option_value;
+      ++$updated;
     }
-  } else {
+  }
+  if ( $updated == 0 ) {
     push @{ $self->{_parsed_options} },
       {
       name => $option_name,
       ( defined $option_value ? ( value => $option_value ) : () )
       };
-    push @{ $self->{_parsed_options_index}->{$option_name} },
-      $#{ $self->{_parsed_options} };
+  } elsif ( $updated > 1 ) {
+    # KLUGE edge-case where duplicate entries exist for this option. Clear
+    # all duplicates beyond the first entry.
+    my $seen = 0;
+    @{ $self->{_parsed_options} } = grep {
+           $_->{name} ne $option_name
+        or $_->{name} eq $option_name
+        && !$seen++
+    } @{ $self->{_parsed_options} };
   }
 
-  return 1;
+  return $record_count - @{ $self->{_parsed_options} };
 }
 
 sub unset_option {
   my $self        = shift;
   my $option_name = shift;
-  my $count       = 0;
 
   if ( exists $self->{_options} and length $self->{_options} > 0 ) {
     if ( !exists $self->{_parsed_options} ) {
@@ -347,15 +326,11 @@ sub unset_option {
     }
   }
 
-  if ( exists $self->{_parsed_options_index}->{$option_name} ) {
-    for my $index ( @{ $self->{_parsed_options_index}->{$option_name} } ) {
-      splice @{ $self->{_parsed_options} }, $index, 1;
-      ++$count;
-    }
-    delete $self->{_parsed_options_index}->{$option_name};
-  }
+  my $record_count = scalar @{ $self->{_parsed_options} };
+  @{ $self->{_parsed_options} } =
+    grep { $_->{name} ne $option_name } @{ $self->{_parsed_options} };
 
-  return $count;
+  return $record_count - @{ $self->{_parsed_options} };
 }
 
 sub as_string {
@@ -471,7 +446,7 @@ Returns the value (or values) for a named option. OpenSSH does allow
 duplicate entries for options, though in most cases this method will
 only return a single value. Options are boolean or string value; boolean
 options return the name of the method, while string options return the
-string value:
+string value. Assuming the options have been set as shown above:
 
   # returns 'no-agent-forwarding'
   $entry->get_option('no-agent-forwarding');
@@ -493,9 +468,13 @@ for that option.
   # string value
   $entry->set_option(from => '127.0.0.1');
 
+If multiple options with the same name are present in the options list,
+only the first option found will be updated, and all subseqent entries
+removed from the options list.
+
 =item B<unset_option> I<option name>
 
-Deletes the named option.
+Deletes all occurrences of the named option.
 
 =item B<as_string>
 
