@@ -1,4 +1,10 @@
 # -*- Perl -*-
+#
+# Methods to interact with OpenSSH authorized_keys file data.
+#
+# TODO need to implement better exception handling (this module, or
+# Authkey::Entry, or the duplicate checks?). Then some perldoc work,
+# sample scripts to see if interface is nice...
 
 package Config::OpenSSH::Authkey;
 
@@ -10,22 +16,52 @@ use warnings;
 use Carp qw(croak);
 use Config::OpenSSH::Authkey::Entry ();
 
-our $VERSION = '0.05';
+our $VERSION = '0.10';
 
-# For (optional) duplicate suppression - TODO use tied hash if suitable
-# module available?? Or just do it myself??
-my %seen_keys;
+{
+  # Utility class for comments or blank lines in authorized_keys files
+  package Config::OpenSSH::Authkey::MetaEntry;
+
+  sub new {
+    my $class = shift;
+    my $entry = shift;
+    bless \$entry, $class;
+  }
+
+  sub as_string {
+    ${ $_[0] };
+  }
+}
+
+######################################################################
+#
+# Class methods
 
 sub new {
-  my $class = shift;
-  my $self = { _keys => [] };
+  my $class       = shift;
+  my $options_ref = shift;
+
+  my $self = {
+    _keys              => [],
+    _seen_keys         => {},
+    _auto_store        => 0,
+    _kill_dups         => 0,
+    _strip_nonkey_data => 0
+  };
+
+  for my $pref (qw/auto_store kill_dups strip_nonkey_data/) {
+    if ( exists $options_ref->{$pref} ) {
+      $self->{"_$pref"} = $options_ref->{$pref} ? 1 : 0;
+    }
+  }
+
   bless $self, $class;
   return $self;
 }
 
-# TODO load vs. parse or iterate to keep the API cleaner?
-
-# TODO method to set duplicate handling (on/off/callback?)
+######################################################################
+#
+# Instance methods
 
 sub parse_file {
   my $self = shift;
@@ -34,41 +70,32 @@ sub parse_file {
   my $fh;
   open( $fh, '<', $file ) or croak($!);
 
-  $self->parse_fh( $fh, @_ );
+  return $self->parse_fh( $fh, @_ );
 }
 
 sub parse_fh {
-  my ( $self, $fh, $callback_ref, $kill_dups ) = @_;
-
-  if ( defined $callback_ref ) {
-    croak('callback not a CODE reference') unless ref $callback_ref eq 'CODE';
-  } else {
-    $callback_ref = sub { shift eq 'pubkey' ? 1 : 0 };
-  }
-  $kill_dups = 0 if !defined $kill_dups;
+  my ( $self, $fh, $callback_ref ) = @_;
 
   while ( my $line = <$fh> ) {
+    my ( $entry, $type );
     if ( $line =~ m/^\s*(?:#|$)/ ) {
-      $callback_ref->( 'metadata', $line );
-    } else {
-      eval {
-        my $entry = Config::OpenSSH::Authkey::Entry->new($line);
-
-        if ($kill_dups) {
-          die "duplicate\n" if $seen_keys{ $entry->key }++;
-        }
-
-        if ( $callback_ref->( 'pubkey', $line, $@ ) ) {
+      if ( $self->{_strip_nonkey_data} ) {
+        next;
+      } else {
+        $entry = Config::OpenSSH::Authkey::MetaEntry->new($line);
+        $type  = 'metadata';
+        if ( $self->{_auto_store} ) {
           push @{ $self->{_keys} }, $entry;
         }
-      };
-      if ($@) {
-        if ( $@ eq "duplicate\n" ) {
-          $callback_ref->( 'duplicate', $line, $@ );
-        } else {
-          $callback_ref->( 'unknown', $line, $@ );
-        }
       }
+    } else {
+      $entry = $self->parse_entry($line);
+      $type  = 'pubkey';
+    }
+
+    if ( defined $callback_ref ) {
+      eval { $callback_ref->( $type, $entry, $line ); };
+      croak($@) if $@;
     }
   }
 
@@ -76,19 +103,19 @@ sub parse_fh {
 }
 
 # Directly parse an authorized_keys line (or SSH public key data from
-# somewhere). Will throw an error from Config::OpenSSH::Authkey::Entry
-# if parsing fails.
+# somewhere).
 sub parse_entry {
-  my ( $self, $line, $kill_dups ) = @_;
-  $kill_dups = 0 if !defined $kill_dups;
+  my ( $self, $line ) = @_;
 
   my $entry = Config::OpenSSH::Authkey::Entry->new($line);
 
-  if ($kill_dups) {
-    die "duplicate\n" if $seen_keys{ $entry->key }++;
+  if ( $self->{_kill_dups} ) {
+    # TODO probably need better duplicate handling...
+    undef $entry if $self->{_seen_keys}->{ $entry->key }++;
   }
-  # TODO need option or callback to toggle this decision
-  push @{ $self->{_keys} }, $entry;
+  if ( $self->{_auto_store} ) {
+    push @{ $self->{_keys} }, $entry if defined $entry;
+  }
 
   return $entry;
 }
@@ -98,7 +125,37 @@ sub keys {
 }
 
 sub reset {
-  shift->{_keys} = [];
+  my $self = shift;
+  $self->{_seen_keys} = {};
+  $self->{_keys}      = [];
+  return 1;
+}
+
+sub auto_store {
+  my $self    = shift;
+  my $setting = shift;
+  if ( defined $setting ) {
+    $self->{_auto_store} = $setting ? 1 : 0;
+  }
+  return $self->{_auto_store};
+}
+
+sub kill_dups {
+  my $self    = shift;
+  my $setting = shift;
+  if ( defined $setting ) {
+    $self->{_kill_dups} = $setting ? 1 : 0;
+  }
+  return $self->{_kill_dups};
+}
+
+sub strip_nonkey_data {
+  my $self    = shift;
+  my $setting = shift;
+  if ( defined $setting ) {
+    $self->{_strip_nonkey_data} = $setting ? 1 : 0;
+  }
+  return $self->{_strip_nonkey_data};
 }
 
 1;
@@ -137,47 +194,51 @@ Constructor method. Accepts no arguments.
 
 =item B<parse_fh>
 
-Instance method. Accepts a filehandle, an optional callback CODE
-reference, an a boolean that if true will cause duplicate keys to
-be skipped. TODO error handling??
+Instance method. TODO.
 
-If the callback CODE reference is C<undef> or not passed, all parsed
-C<authorized_keys> entries will be stored in the object for future use.
+=item B<parse_file> I<filename>
 
-Duplicates are checked for by the public key material. This may be a
-different view than what OpenSSH considers a valid key, as OpenSSH will
-use the first matching key that also has valid options, given two
-identical entries where the first has invalid options set. As this
-module does not yet parse option, the first matching public key wins,
-not necessarily a subsequent duplicate key that has valid options set.
+Instance method. Accepts a filename (expansion of shell conventions such
+as C<~> is not supported; use L<File::HomeDir|File::HomeDir> or similar
+to perform that expansion), opens the file (or croaks), but otherwise
+passes that filehandle and any remaining arguments over to B<parse_fh>.
 
-=item B<parse_file>
+=item B<parse_entry> I<line>
 
-Instance method. Accepts a fully qualified filename (expansion of shell
-type metacharacters such as C<~> is not supported; use
-L<File::HomeDir|File::HomeDir> or similar to perform that expansion),
-opens the file (or croaks), but otherwise passes that filehandle and any
-remaining arguments up to B<parse_fh>.
-
-=item B<parse_entry>
-
-Instance method. Passes data presumed to be an C<authorized_keys> entry
-directly to the
+Instance method. Passes first argument directly to the
 L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
-module. Useful if the C<authorized_keys> data resides in some other
-source, such as a database, instead of on the filesystem.
-
-Throws an error if parsing fails.
+module.
 
 Returns an
-L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry> object.
+L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
+object. Throws an error if parsing fails.
 
 =item B<keys>
 
 Returns an array reference of any public keys parsed by a B<parse_*>
-instance method.
+instance method, assuming such keys were populated by enabling the
+B<auto_store> option.
 
 =item B<reset>
+
+Removes all C<authorized_keys> entries stored by the instance.
+
+=item B<auto_store> I<boolean>
+
+Whether to store parsed entries in the instance. Default is to not store
+any entries.
+
+=item B<kill_dups> I<boolean>
+
+Whether to omit duplicate C<authorized_keys> keys. Default is to not
+omit any duplicates. TODO if enabled, replacing object with C<undef>
+which probably could be improved.
+
+=item B<strip_nonkey_data> I<boolean>
+
+Whether to strip out non-public key related material (blank lines and
+comments from C<authorized_keys> files, typically) when processing input
+via B<parse_file> or B<parse_fh>. Default is to not strip non-key data.
 
 =back
 
