@@ -52,7 +52,7 @@ my $_split_options = sub {
 
 OPTION_LEXER: {
     # String Argument Options - value is a perhaps empty string enclosed
-    # in doublequotes. Internal doublequotes are allowed, but only if
+    # in double quotes. Internal double quotes are allowed, but only if
     # these are preceded by a backslash.
     if (
       $options =~ m/ \G ($AUTHKEY_OPTION_NAME_RE)="( (?: \\"|[^"] )*? )"
@@ -84,7 +84,7 @@ OPTION_LEXER: {
   }
 
   $self->{_parsed_options_count} = $parsed_option_count;
-  return 1;
+  return $parsed_option_count;
 };
 
 # Utility routine in event user passes in a complete new options string
@@ -274,6 +274,7 @@ sub unset_options {
 sub get_option {
   my $self        = shift;
   my $option_name = shift;
+  my @values;
 
   if ( exists $self->{_options} and length $self->{_options} > 0 ) {
     if ( !exists $self->{_parsed_options} ) {
@@ -281,9 +282,13 @@ sub get_option {
     }
   }
 
-  return
-    map { $self->{_parsed_options}->[$_]->{value} || $option_name }
-    @{ $self->{_parsed_options_index}->{$option_name} };
+  if ( exists $self->{_parsed_options_index}->{$option_name} ) {
+    @values =
+      map { $self->{_parsed_options}->[$_]->{value} || $option_name }
+      @{ $self->{_parsed_options_index}->{$option_name} };
+  }
+
+  return wantarray ? @values : $values[0];
 }
 
 # Sets an option. To enable a boolean option, only supply the option
@@ -320,7 +325,7 @@ sub set_option {
       name => $option_name,
       ( defined $option_value ? ( value => $option_value ) : () )
       };
-    $self->{_parsed_options_index}->{$option_name} =
+    push @{ $self->{_parsed_options_index}->{$option_name} },
       $#{ $self->{_parsed_options} };
   }
 
@@ -469,6 +474,9 @@ string value:
   
   # returns '127.0.0.1'
   $entry->get_option('from');
+
+In scalar context, only the first option is returned. In list context, a
+list of one (or rarely more) values will be returned.
 
 =item B<set_option> I<option name>, I<optional value>
 
