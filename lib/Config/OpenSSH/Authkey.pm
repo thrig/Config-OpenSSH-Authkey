@@ -10,7 +10,7 @@ use warnings;
 use Carp qw(croak);
 use Config::OpenSSH::Authkey::Entry ();
 
-our $VERSION = '0.02';
+our $VERSION = '0.05';
 
 # For (optional) duplicate suppression - TODO use tied hash if suitable
 # module available?? Or just do it myself??
@@ -107,7 +107,7 @@ __END__
 
 =head1 NAME
 
-Config::OpenSSH::Authkey - interface to OpenSSH authorized_keys
+Config::OpenSSH::Authkey - interface to OpenSSH authorized_keys data
 
 =head1 SYNOPSIS
 
@@ -120,7 +120,8 @@ This module provides an interface to the entries in an OpenSSH
 C<authorzied_keys> file. Both SSH1 and SSH2 protocol public keys are
 supported.
 L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
-provides an interface to each parsed public key.
+provides an interface to individual entries (lines) in the
+C<authorzied_keys> file.
 
 This is a pure Perl interface, so may differ from how OpenSSH parses the
 C<authorzied_keys> data. The sshd(8) manual and OpenSSH 5.2 source code
@@ -182,20 +183,10 @@ instance method.
 
 =head1 BUGS
 
-No known bugs.
-
-=head2 Reporting Bugs
-
-Newer versions of this module may be available from CPAN.
+No known bugs. Newer versions of this module may be available from CPAN.
 
 If the bug is in the latest version, send a report to the author.
 Patches that fix problems or add new features are welcome.
-
-=head2 Known Issues
-
-Note that parsing of OpenSSH authorized_keys options (C<command=""> and
-so forth) beyond stashing them into a string is not yet supported. A
-future version of this module may add better support for options.
 
 =head1 SEE ALSO
 
@@ -207,7 +198,7 @@ Jeremy Mates, E<lt>jmates@sial.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright 2009 by Jeremy Mates.
+Copyright 2009-2010 by Jeremy Mates.
 
 This program is free software; you can redistribute it and/or modify it
 under the Artistic license.
