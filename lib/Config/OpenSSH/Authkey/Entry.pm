@@ -13,7 +13,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
@@ -91,25 +91,25 @@ my $_parsed_options_as_string = sub {
 
 my $_parse_entry = sub {
   my $self = shift;
-  my $entry = shift || q{};
+  my $data = shift || q{};
 
   my ( $options, $key, $comment, $protocol, $keytype );
 
-  chomp $entry;
+  chomp $data;
 
-  if ( $entry =~ m/^\s*$/ or $entry =~ m/^\s*#/ ) {
+  if ( $data =~ m/^\s*$/ or $data =~ m/^\s*#/ ) {
     return ( 0, 'no public key data' );
-  } elsif ( length $entry >= $MAX_PUBKEY_BYTES ) {
+  } elsif ( length $data >= $MAX_PUBKEY_BYTES ) {
     return ( 0, 'exceeds size limit' );
   }
 
   # OpenSSH supports leading whitespace before options or key. Strip
   # this optional whitespace to simplify parsing.
-  $entry =~ s/^[ \t]+//;
+  $data =~ s/^[ \t]+//;
 
 ENTRY_LEXER: {
     # Optional trailing comment (user@host, usually)
-    if ( defined $key and $entry =~ m/ \G (.+) /cgx ) {
+    if ( defined $key and $data =~ m/ \G (.+) /cgx ) {
       $comment = $1;
 
       last ENTRY_LEXER;
@@ -117,7 +117,7 @@ ENTRY_LEXER: {
 
     # SSH2 RSA or DSA public key
     if ( !defined $key
-      and $entry =~
+      and $data =~
       m/ \G ( ssh-(rsa|dss) [ \t]+? [A-Za-z0-9+\/]+ =* ) [ \t]* /cgx ) {
 
       $key = $1;
@@ -130,7 +130,7 @@ ENTRY_LEXER: {
 
     # SSH1 RSA public key
     if ( !defined $key
-      and $entry =~ m/ \G ( \d{3,5} [ \t]+? \d+ [ \t]+? \d+ ) [ \t]* /cgx ) {
+      and $data =~ m/ \G ( \d{3,5} [ \t]+? \d+ [ \t]+? \d+ ) [ \t]* /cgx ) {
 
       $key      = $1;
       $keytype  = 'rsa1';
@@ -140,7 +140,7 @@ ENTRY_LEXER: {
     }
 
     # Optional leading options - may contain whitespace inside ""
-    if ( !defined $key and $entry =~ m/ \G ([^ \t]+? [ \t]*) /cgx ) {
+    if ( !defined $key and $data =~ m/ \G ([^ \t]+? [ \t]*) /cgx ) {
       $options .= $1;
 
       redo ENTRY_LEXER;
@@ -175,12 +175,12 @@ ENTRY_LEXER: {
 
 sub new {
   my $class = shift;
-  my $entry = shift;
+  my $data = shift;
 
-  my $self = {};
+  my $self = { _dup_of => 0 };
 
-  if ( defined $entry ) {
-    my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $entry );
+  if ( defined $data ) {
+    my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $data );
     if ( !$is_parsed ) {
       croak($err_msg);
     }
@@ -193,6 +193,18 @@ sub new {
 ######################################################################
 #
 # Instance methods
+
+sub parse {
+  my $self = shift;
+  my $data = shift || croak('no data supplied to parse');
+
+  my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $data );
+  if ( !$is_parsed ) {
+    croak($err_msg);
+  }
+  
+  return $self;
+}
 
 sub key {
   my $self = shift;
@@ -353,6 +365,17 @@ sub as_string {
   return $string;
 }
 
+sub duplicate_of {
+  my $self = shift;
+  my $ref = shift;
+  
+  if (defined $ref) {
+    $self->{_dup_of} = $ref;  
+  }
+
+  return $self->{_dup_of};
+}
+
 1;
 
 __END__
@@ -370,7 +393,7 @@ standalone:
   
   # assuming $fh is opened to an authorized_keys file...
   eval {
-    $entry->key($fh->getline);
+    $entry->parse($fh->getline);
     if ($entry->protocol == 1) {
       warn "warning: deprecated SSHv1 key detected ...\n";
     }
@@ -391,10 +414,14 @@ via the B<new> or B<key> methods.
 
 =over 4
 
-=item B<new> I<optional entry to parse>
+=item B<new> I<optional data to parse>
 
 Constructor. Optionally accepts an C<authorized_keys> file entry to
 parse.
+
+=item B<parse> I<data to parse>
+
+Utility method in event data to parse was not passed to B<new>.
 
 =item B<key> I<optional key to parse>
 
@@ -479,6 +506,13 @@ Deletes all occurrences of the named option.
 =item B<as_string>
 
 Returns the entry formatted as an OpenSSH authorized_keys line.
+
+=item B<duplicate_of> I<optional value>
+
+If supplied with an argument, stores this data in the object. Always
+returns the value of this data, which is C<0> by default. Used by
+L<Config::OpenSSH::Authkey> to track whether (and of what) a key is a
+duplicate of.
 
 =back
 

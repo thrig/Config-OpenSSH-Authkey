@@ -5,14 +5,14 @@
 use strict;
 use warnings;
 
-use Test::More tests => 84;
+use Test::More tests => 86;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey::Entry') }
 ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
 
 can_ok(
   'Config::OpenSSH::Authkey::Entry',
-  qw{new key protocol keytype as_string
+  qw{new parse key protocol keytype as_string duplicate_of
     comment unset_comment
     options unset_options get_option set_option unset_option}
 );
@@ -138,7 +138,7 @@ for my $key_type ( keys %test_keys ) {
 
     $ak_string =
       $options . q{ } . $test_keys{$key_type}->{key} . q{ } . $comment;
-    $ak_entry = Config::OpenSSH::Authkey::Entry->new($ak_string);
+    $ak_entry = Config::OpenSSH::Authkey::Entry->new->parse($ak_string);
 
     is( $ak_entry->comment,   $comment,   "check comment for $key_type" );
     is( $ak_entry->options,   $options,   "check options for $key_type" );
@@ -215,6 +215,10 @@ for my $key_type ( keys %test_keys ) {
 
     is( $ak_entry->options, 'from="::1",no-pty',
       'check options() for de-duplicated entries' );
+    
+    is( $ak_entry->duplicate_of, 0, 'check default for duplicate_of');
+    $ak_entry->duplicate_of(1);
+    is( $ak_entry->duplicate_of, 1, 'check that duplicate_of accpets value');
   };
   if ($@) {
     chomp $@;
