@@ -6,7 +6,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 18;
+use Test::More tests => 15;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey') }
 ok( defined $Config::OpenSSH::Authkey::VERSION, '$VERSION defined' );
@@ -24,22 +24,26 @@ ok( defined $Config::OpenSSH::Authkey::VERSION, '$VERSION defined' );
 eval {
   can_ok(
     'Config::OpenSSH::Authkey',
-    qw/new parse_file parse_fh parse_entry keys reset
-      auto_store kill_dups strip_nonkey_data/
+    qw/new fh file iterate_fh consume_fh parse_entry
+    iterate_store reset_store_iterator reset_store reset_dups
+    auto_store check_dups strip_nonkey_data/
   );
 
   my $ak = Config::OpenSSH::Authkey->new();
   isa_ok( $ak, 'Config::OpenSSH::Authkey' );
-  ok( !@{ $ak->keys }, 'check that no keys exist' );
+#  ok( !@{ $ak->keys }, 'check that no keys exist' );
+# TODO - may need new method to return count of keys in store? As
+# only have an iterator now... or a "dump" or something to get
+# all the keys instead.
 
-  my @prefs = qw/auto_store kill_dups strip_nonkey_data/;
+  my @prefs = qw/auto_store check_dups strip_nonkey_data/;
   for my $pref (@prefs) {
     is( $ak->$pref, 0, "check default for $pref setting" );
   }
 
   # Confirm options can be passed to new()
   my $ak_opts = Config::OpenSSH::Authkey->new(
-    { auto_store => 1, kill_dups => 1, strip_nonkey_data => 1 } );
+    { auto_store => 1, check_dups => 1, strip_nonkey_data => 1 } );
   for my $pref (@prefs) {
     is( $ak_opts->$pref, 1, "check non-default for $pref setting" );
   }
@@ -48,22 +52,31 @@ eval {
   $ak->strip_nonkey_data(1);
   is( $ak->auto_store, 1, 'check that auto_store setting updated' );
 
-  $ak->parse_file('t/authorized_keys');
-  is( scalar @{ $ak->keys }, 4, 'check that all keys loaded' );
+  $ak->file('t/authorized_keys');
+#  is( scalar @{ $ak->keys }, 4, 'check that all keys loaded' );
+# TODO
 
-  $ak->reset();
-  ok( !@{ $ak->keys }, 'check that no keys exist' );
+  $ak->reset_store();
+#  ok( !@{ $ak->keys }, 'check that no keys exist' );
+# TODO
 
-  $ak->kill_dups(1);
+  $ak->check_dups(1);
 
   open( my $fh, '<', 't/authorized_keys' )
     or diag("cannot open authkeys file: $!\n");
-  $ak->parse_fh($fh);
-  is( scalar @{ $ak->keys }, 3, 'check that keys loaded w/o dups' );
+  $ak->fh($fh);
+#  is( scalar @{ $ak->keys }, 3, 'check that keys loaded w/o dups' );
+# TODO - plus this will be 4, and one will pass $entry->duplicate_of
 
 };
 if ($@) {
-  diag("Unexpected error: $@");
+  diag("Unexpected exception: $@");
 }
+
+eval {
+  my $ak = Config::OpenSSH::Authkey->new();
+  $ak->parse_entry('not a pubkey');
+};
+like( $@, qr/unable to parse public key/, "invalid pubkey error" );
 
 exit 0;
