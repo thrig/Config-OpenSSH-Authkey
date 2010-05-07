@@ -5,7 +5,7 @@ Makefile.PL
 MANIFEST
 README
 META.yml
-eg/ssh1-hostkey-audit
+eg/ssh1-authkey-audit
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm
 inc/Module/Install/Fetch.pm
