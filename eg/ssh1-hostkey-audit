@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use Config::OpenSSH::Authkey ();
+my $ak = Config::OpenSSH::Authkey->new();
+
+my $file = shift || die "Usage: $0 auth_key-file\n";
+
+$ak->file($file);
+
+while ( my $entry = $ak->iterate ) {
+  if ( $entry->can('protocol') ) {
+    if ( $entry->protocol == 1 ) {
+      warn "notice: skipping SSHv1 key at $file line $.\n";
+      next;
+    }
+  }
+
+  print $entry->as_string, "\n";
+}

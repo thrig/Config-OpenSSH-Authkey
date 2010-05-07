@@ -251,7 +251,7 @@ all other data in the file:
       next if $entry->protocol == 1;
     }
     
-    print $output_fh $entry->as_string;
+    print $output_fh $entry->as_string, "\n";
   }
 
 =item B<consume>
