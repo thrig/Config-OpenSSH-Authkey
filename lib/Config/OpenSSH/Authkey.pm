@@ -14,7 +14,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '0.51';
+our $VERSION = '0.52';
 
 ######################################################################
 #
@@ -48,11 +48,11 @@ sub new {
     _keys                => [],
     _seen_keys           => {},
     _auto_store          => 0,
-    _check_dups          => 0,
+    _tag_dups            => 0,
     _nostore_nonkey_data => 0
   };
 
-  for my $pref (qw/auto_store check_dups nostore_nonkey_data/) {
+  for my $pref (qw/auto_store tag_dups nostore_nonkey_data/) {
     if ( exists $options_ref->{$pref} ) {
       $self->{"_$pref"} = $options_ref->{$pref} ? 1 : 0;
     }
@@ -76,7 +76,7 @@ sub fh {
 
 sub file {
   my $self = shift;
-  my $file = shift;
+  my $file = shift || croak('file requires a file');
 
   my $fh;
   open( $fh, '<', $file ) or croak($!);
@@ -90,50 +90,48 @@ sub iterate {
   croak('no filehandle to iterate on') if !defined $self->{_fh};
 
   my $line = $self->{_fh}->getline;
-  my $entry;
-
-  if ( defined $line ) {
-    if ( $line =~ m/^\s*(?:#|$)/ ) {
-      chomp($line);
-      $entry = Config::OpenSSH::Authkey::MetaEntry->new($line);
-      if ( $self->{_auto_store} and !$self->{_nostore_nonkey_data} ) {
-        push @{ $self->{_keys} }, $entry;
-      }
-    } else {
-      $entry = $self->parse_entry($line);
-    }
-  }
-
-  return $entry;
+  return defined $line ? $self->parse($line) : ();
 }
 
 sub consume {
   my $self = shift;
+  croak('no filehandle to consume') if !defined $self->{_fh};
 
   my $old_auto_store = $self->auto_store();
   $self->auto_store(1);
 
-  my $entry;
-  do { $entry = $self->iterate } until !defined $entry;
+  while ( my $line = $self->{_fh}->getline ) {
+    $self->parse($line);
+  }
 
   $self->auto_store($old_auto_store);
 
   return $self;
 }
 
-sub parse_entry {
-  my ( $self, $line ) = @_;
+sub parse {
+  my $self = shift;
+  my $data = shift || croak('need data to parse');
 
-  my $entry = Config::OpenSSH::Authkey::Entry->new($line);
+  my $entry;
 
-  if ( $self->{_check_dups} ) {
-    if ( exists $self->{_seen_keys}->{ $entry->key } ) {
-      $entry->duplicate_of( $self->{_seen_keys}->{ $entry->key } );
-    } else {
-      $self->{_seen_keys}->{ $entry->key } = $entry;
+  if ( $data =~ m/^\s*(?:#|$)/ ) {
+    chomp($data);
+    $entry = Config::OpenSSH::Authkey::MetaEntry->new($data);
+    if ( $self->{_auto_store} and !$self->{_nostore_nonkey_data} ) {
+      push @{ $self->{_keys} }, $entry;
     }
+  } else {
+    $entry = Config::OpenSSH::Authkey::Entry->new($data);
+    if ( $self->{_tag_dups} ) {
+      if ( exists $self->{_seen_keys}->{ $entry->key } ) {
+        $entry->duplicate_of( $self->{_seen_keys}->{ $entry->key } );
+      } else {
+        $self->{_seen_keys}->{ $entry->key } = $entry;
+      }
+    }
+    push @{ $self->{_keys} }, $entry if $self->{_auto_store};
   }
-  push @{ $self->{_keys} }, $entry if $self->{_auto_store};
 
   return $entry;
 }
@@ -164,13 +162,13 @@ sub auto_store {
   return $self->{_auto_store};
 }
 
-sub check_dups {
+sub tag_dups {
   my $self    = shift;
   my $setting = shift;
   if ( defined $setting ) {
-    $self->{_check_dups} = $setting ? 1 : 0;
+    $self->{_tag_dups} = $setting ? 1 : 0;
   }
-  return $self->{_check_dups};
+  return $self->{_tag_dups};
 }
 
 sub nostore_nonkey_data {
@@ -220,78 +218,72 @@ C<authorized_keys> data is handled.
 =item B<new>
 
 Constructor method. Accepts a hash reference containing L<"OPTIONS"> that
-alter how the instance behaves when processing C<authorized_keys>. The
-hash reference can also contain various L<"CALLBACKS"> that can customize
-how duplicates are detected.
+alter how the instance behaves.
 
   my $ak = Config::OpenSSH::Authkey->new({
-    check_dups => 1,
-    nostore_nonkey_data => 1
+    tag_dups => 1,
+    nostore_nonkey_data => 1,
   });
 
-=item B<parse_fh> I<filehandle>, I<optional code ref>
+=item B<fh>
 
-Instance method. Accepts a filehandle, and iterates over the
-contents of that handle. This method will throw an exception should
-something go wrong.
+Accepts a filehandle, stores this handle in the instance, for future use
+by B<iterate> or B<consume>.
 
-Duplicate handling is done in the B<parse_entry> method, which is called
-by this method for each line that might be a public key. See
-L<"OPTIONS"> for settings that influence what B<parse_fh> does.
+=item B<file>
 
-If passed a code reference, this method will invoke that reference for
-each (non-duplicate) entry found in the file. The only argument to this
-reference will either be a C<Config::OpenSSH::Authkey::MetaEntry>
-(comments, blank lines) object, or a L<Config::OpenSSH::Authkey::Entry>
-(public key) object. To skip comments and blank lines, enable the
-B<nostore_nonkey_data> option prior to calling B<parse_fh>.
+Accepts a filename, attempts to open this file, and store the resulting
+filehandle in the instance for future use by B<iterate> or B<consume>.
+Throws an exception if the file cannot be opened.
 
-An example callback that strips any SSHv1 keys:
+=item B<iterate>
 
-  $ak->parse_fh($input_fh, sub {
-    my $entry = shift;
-    
-    if ($entry->can("key")) {
-      return if $entry->protocol == 1;
+Returns the next entry of the filehandle (or, lacking a filehandle in
+the instance, throws an error. Call B<fh> or B<file> first). Returned
+data will either be C<Config::OpenSSH::Authkey::MetaEntry> (comments,
+blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.
+
+For example, to exclude SSHv1 C<authorized_keys> data, while retaining
+all other data in the file:
+
+  while (my $entry = $ak->iterate) {
+    if ($entry->can("prototol")) {
+      next if $entry->protocol == 1;
     }
     
     print $output_fh $entry->as_string;
-  });
+  }
 
-=item B<parse_file> I<filename>
+=item B<consume>
 
-Instance method. Accepts a filename, and opens that file (or croaks on
-failure), but otherwise passes the resulting filehandle (and any
-remaining arguments) to the B<parse_fh> method.
+This method consumes all data in the B<fh> or B<file> opened in the
+instance, and saves it to the module key store. The B<auto_store> option
+is temporarily enabled to allow this. Set the B<nostore_nonkey_data>
+option to avoid saving non-key material to the key store. Stored keys
+can be accessed by calling the B<get_stored_keys> method.
 
-Use L<File::HomeDir|File::HomeDir> or similar if expansion of shell-type
-constructs (C<~> for a home directory) is required.
+=item B<parse> I<data>
 
-=item B<parse_entry> I<line>
+Attempts to parse input data, either as a comment or blank line with
+C<Config::OpenSSH::Authkey::MetaEntry>, or as a public key via
+L<Config::OpenSSH::Authkey::Entry>. Will throw an exception if the
+public key cannot be parsed.
 
-Instance method. Passes first argument directly to the
-L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
-module. Returns an
-L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
-object, or C<undef> if an entry was a duplicate of a previous entry.
-Throws an error if parsing fails.
+Returns either an C<Config::OpenSSH::Authkey::MetaEntry> or
+L<Config::OpenSSH::Authkey::Entry> object.
 
-This method is also called by the B<parse_file> and B<parse_fh> methods
-while looping over entries in a file, and is where the
-B<check_duplicate> L<"CALLBACKS"> handling occurs.
+=item B<get_stored_keys>
 
-=item B<keys>
-
-Instance method. Returns an array reference of any public keys parsed by
-a B<parse_*> instance method. B<keys> will only be populated if the
-B<auto_store> option is enabled.
+Instance method. Returns an array reference of any public keys stored in
+the instance. B<keys> will only be populated if the B<auto_store> option
+is enabled.
 
 Keys will be either C<Config::OpenSSH::Authkey::MetaEntry> (comments,
 blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.
 To avoid storing comments and blank lines, enable the
-B<nostore_nonkey_data> option prior to using the B<parse_f*> methods.
+B<nostore_nonkey_data> option before calling B<iterate> or B<consume>.
 
-=item B<reset>
+=item B<reset_store>
 
 Removes all C<authorized_keys> entries stored by the instance. Also
 removes all the seen keys from the duplicate check stash.
@@ -317,7 +309,7 @@ options default to false. Pass a true value to enable.
 Whether to store parsed entries in the instance. The default is to not
 store any entries.
 
-=item B<check_dups> I<boolean>
+=item B<tag_dups> I<boolean>
 
 Whether to check for duplicate C<authorized_keys> keys. The default is
 to not check for duplicate keys. If this option is enabled, the
@@ -326,10 +318,9 @@ used to check whether a particular entry is a duplicate.
 
 =item B<nostore_nonkey_data> I<boolean>
 
-Whether to strip out non-public key related material (blank lines and
-comments from C<authorized_keys> files, typically) when processing
-input via B<parse_file> or B<parse_fh>. The default is to not strip
-non-key data.
+Whether to store non-key data (comments, blank lines) in the auto-store
+data structure. The default is to store these lines. The B<iterate>
+method always returns these lines, regardless of this setting.
 
 =back
 
