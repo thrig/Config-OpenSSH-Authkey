@@ -15,4 +15,5 @@ inc/Module/Install/WriteAll.pm
 inc/Module/Install.pm
 t/020-entry.t
 t/040-authkey.t
+t/authorized_keys
 t/pod.t
