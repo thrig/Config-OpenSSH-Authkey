@@ -1,3 +1,7 @@
+http://search.cpan.org/perldoc/Config::OpenSSH::Authkey
+
+http://github.com/thrig/Config-OpenSSH-Authkey
+
 Install via the cpan(1) command, or manually via:
 
 perl Makefile.PL
@@ -8,4 +12,3 @@ make install
 Run perldoc(1) on the Config::OpenSSH::Authkey module for more
 documentation.
 
-http://github.com/thrig/Config-OpenSSH-Authkey
