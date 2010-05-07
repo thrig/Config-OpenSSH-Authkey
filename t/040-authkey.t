@@ -6,11 +6,12 @@
 use strict;
 use warnings;
 
-use Test::More tests => 15;
+use Test::More tests => 19;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey') }
 ok( defined $Config::OpenSSH::Authkey::VERSION, '$VERSION defined' );
 
+# Utility class tests
 {
   can_ok( 'Config::OpenSSH::Authkey::MetaEntry', qw{new as_string} );
 
@@ -24,49 +25,43 @@ ok( defined $Config::OpenSSH::Authkey::VERSION, '$VERSION defined' );
 eval {
   can_ok(
     'Config::OpenSSH::Authkey',
-    qw/new fh file iterate_fh consume_fh parse_entry
-    iterate_store reset_store_iterator reset_store reset_dups
-    auto_store check_dups strip_nonkey_data/
+    qw/new fh file iterate consume parse_entry
+      get_stored_keys reset_store reset_dups
+      auto_store check_dups nostore_nonkey_data/
   );
 
   my $ak = Config::OpenSSH::Authkey->new();
   isa_ok( $ak, 'Config::OpenSSH::Authkey' );
-#  ok( !@{ $ak->keys }, 'check that no keys exist' );
-# TODO - may need new method to return count of keys in store? As
-# only have an iterator now... or a "dump" or something to get
-# all the keys instead.
+  ok( !@{ $ak->get_stored_keys }, 'check that no keys exist' );
 
-  my @prefs = qw/auto_store check_dups strip_nonkey_data/;
+  my @prefs = qw/auto_store check_dups nostore_nonkey_data/;
   for my $pref (@prefs) {
     is( $ak->$pref, 0, "check default for $pref setting" );
   }
 
   # Confirm options can be passed to new()
   my $ak_opts = Config::OpenSSH::Authkey->new(
-    { auto_store => 1, check_dups => 1, strip_nonkey_data => 1 } );
+    { auto_store => 1, check_dups => 1, nostore_nonkey_data => 1 } );
   for my $pref (@prefs) {
     is( $ak_opts->$pref, 1, "check non-default for $pref setting" );
   }
 
   $ak->auto_store(1);
-  $ak->strip_nonkey_data(1);
+  $ak->nostore_nonkey_data(1);
   is( $ak->auto_store, 1, 'check that auto_store setting updated' );
 
-  $ak->file('t/authorized_keys');
-#  is( scalar @{ $ak->keys }, 4, 'check that all keys loaded' );
-# TODO
+  $ak->file('t/authorized_keys')->consume;
+  is( scalar @{ $ak->get_stored_keys }, 4, 'check that all keys loaded' );
 
   $ak->reset_store();
-#  ok( !@{ $ak->keys }, 'check that no keys exist' );
-# TODO
+  ok( !@{ $ak->get_stored_keys }, 'check that no keys exist' );
 
   $ak->check_dups(1);
 
   open( my $fh, '<', 't/authorized_keys' )
     or diag("cannot open authkeys file: $!\n");
-  $ak->fh($fh);
-#  is( scalar @{ $ak->keys }, 3, 'check that keys loaded w/o dups' );
-# TODO - plus this will be 4, and one will pass $entry->duplicate_of
+  $ak->fh($fh)->consume;
+  is( scalar @{ $ak->get_stored_keys }, 4, 'check that keys loaded again' );
 
 };
 if ($@) {

@@ -12,7 +12,9 @@ use warnings;
 use Carp qw(croak);
 use Config::OpenSSH::Authkey::Entry ();
 
-our $VERSION = '0.50';
+use IO::Handle qw(getline);
+
+our $VERSION = '0.51';
 
 ######################################################################
 #
@@ -42,16 +44,15 @@ sub new {
   my $options_ref = shift || {};
 
   my $self = {
-    _fh                => undef,
-    _keys              => [],
-    _key_position      => 0,
-    _seen_keys         => {},
-    _auto_store        => 0,
-    _check_dups        => 0,
-    _strip_nonkey_data => 0
+    _fh                  => undef,
+    _keys                => [],
+    _seen_keys           => {},
+    _auto_store          => 0,
+    _check_dups          => 0,
+    _nostore_nonkey_data => 0
   };
 
-  for my $pref (qw/auto_store check_dups strip_nonkey_data/) {
+  for my $pref (qw/auto_store check_dups nostore_nonkey_data/) {
     if ( exists $options_ref->{$pref} ) {
       $self->{"_$pref"} = $options_ref->{$pref} ? 1 : 0;
     }
@@ -84,7 +85,7 @@ sub file {
   return $self;
 }
 
-sub iterate_fh {
+sub iterate {
   my $self = shift;
   croak('no filehandle to iterate on') if !defined $self->{_fh};
 
@@ -93,10 +94,11 @@ sub iterate_fh {
 
   if ( defined $line ) {
     if ( $line =~ m/^\s*(?:#|$)/ ) {
-      next if $self->{_strip_nonkey_data};
       chomp($line);
       $entry = Config::OpenSSH::Authkey::MetaEntry->new($line);
-      push @{ $self->{_keys} }, $entry if $self->{_auto_store};
+      if ( $self->{_auto_store} and !$self->{_nostore_nonkey_data} ) {
+        push @{ $self->{_keys} }, $entry;
+      }
     } else {
       $entry = $self->parse_entry($line);
     }
@@ -105,14 +107,14 @@ sub iterate_fh {
   return $entry;
 }
 
-sub consume_fh {
+sub consume {
   my $self = shift;
 
   my $old_auto_store = $self->auto_store();
   $self->auto_store(1);
 
   my $entry;
-  do $self->iterate until !defined $entry;
+  do { $entry = $self->iterate } until !defined $entry;
 
   $self->auto_store($old_auto_store);
 
@@ -136,24 +138,14 @@ sub parse_entry {
   return $entry;
 }
 
-sub iterate_store {
-  my $self = shift;
-  return $self->{_key_position} > $#{ $self->{_keys} }
-    ? undef
-    : $self->{_keys}->[ $self->{_key_position}++ ];
-}
-
-sub reset_store_iterator {
-  my $self = shift;
-  $self->{_key_position} = 0;
-  return $self;
+sub get_stored_keys {
+  shift->{_keys};
 }
 
 sub reset_store {
   my $self = shift;
-  $self->{_seen_keys}    = {};
-  $self->{_keys}         = [];
-  $self->{_key_position} = 0;
+  $self->{_seen_keys} = {};
+  $self->{_keys}      = [];
   return $self;
 }
 
@@ -181,13 +173,13 @@ sub check_dups {
   return $self->{_check_dups};
 }
 
-sub strip_nonkey_data {
+sub nostore_nonkey_data {
   my $self    = shift;
   my $setting = shift;
   if ( defined $setting ) {
-    $self->{_strip_nonkey_data} = $setting ? 1 : 0;
+    $self->{_nostore_nonkey_data} = $setting ? 1 : 0;
   }
-  return $self->{_strip_nonkey_data};
+  return $self->{_nostore_nonkey_data};
 }
 
 1;
@@ -234,7 +226,7 @@ how duplicates are detected.
 
   my $ak = Config::OpenSSH::Authkey->new({
     check_dups => 1,
-    strip_nonkey_data => 1
+    nostore_nonkey_data => 1
   });
 
 =item B<parse_fh> I<filehandle>, I<optional code ref>
@@ -252,7 +244,7 @@ each (non-duplicate) entry found in the file. The only argument to this
 reference will either be a C<Config::OpenSSH::Authkey::MetaEntry>
 (comments, blank lines) object, or a L<Config::OpenSSH::Authkey::Entry>
 (public key) object. To skip comments and blank lines, enable the
-B<strip_nonkey_data> option prior to calling B<parse_fh>.
+B<nostore_nonkey_data> option prior to calling B<parse_fh>.
 
 An example callback that strips any SSHv1 keys:
 
@@ -297,7 +289,7 @@ B<auto_store> option is enabled.
 Keys will be either C<Config::OpenSSH::Authkey::MetaEntry> (comments,
 blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.
 To avoid storing comments and blank lines, enable the
-B<strip_nonkey_data> option prior to using the B<parse_f*> methods.
+B<nostore_nonkey_data> option prior to using the B<parse_f*> methods.
 
 =item B<reset>
 
@@ -332,7 +324,7 @@ to not check for duplicate keys. If this option is enabled, the
 B<duplicate_of> method of L<Config::OpenSSH::Authkey::Entry> should be
 used to check whether a particular entry is a duplicate.
 
-=item B<strip_nonkey_data> I<boolean>
+=item B<nostore_nonkey_data> I<boolean>
 
 Whether to strip out non-public key related material (blank lines and
 comments from C<authorized_keys> files, typically) when processing
@@ -346,7 +338,7 @@ non-key data.
 Utility class that stores blank lines or comments. Objects of this type
 should only be created by the B<parse_fh> or B<parse_file> methods. The
 object supports an B<as_string> method that will return the line.
-Disable the parsing of this data by enabling the B<strip_nonkey_data>
+Disable the parsing of this data by enabling the B<nostore_nonkey_data>
 option prior to calling a B<parse_f*> method.
 
 =head1 BUGS
