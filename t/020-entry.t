@@ -83,8 +83,8 @@ for my $key_type ( keys %test_keys ) {
       "$key_type string unchanged after parsing"
     );
 
-    ok( !defined $ak_entry->comment, "comment not set for $key_type" );
-    ok( !defined $ak_entry->options, "options not set for $key_type" );
+    is( $ak_entry->comment, '', "comment not set for $key_type" );
+    is( $ak_entry->options, '', "options not set for $key_type" );
 
     my $comment = 'user@host.local';
     my $options = 'command="hostname"';
@@ -100,10 +100,10 @@ for my $key_type ( keys %test_keys ) {
 
     # Undo the comment, options, confirm no wacky sideeffects...
     $ak_entry->unset_comment;
-    ok( !defined $ak_entry->comment, "comment unset properly" );
+    is( $ak_entry->comment, '', 'comment unset properly' );
 
     $ak_entry->unset_options;
-    ok( !defined $ak_entry->options, "options unset properly" );
+    is( $ak_entry->options, '', 'options unset properly' );
 
     is(
       $ak_entry->as_string,
@@ -132,15 +132,15 @@ for my $key_type ( keys %test_keys ) {
     $ak_entry = Config::OpenSSH::Authkey::Entry->new;
     $ak_entry->key($ak_string);
 
-    is( $ak_entry->comment, $comment, "check comment for $key_type" );
-    ok( !defined $ak_entry->options, "options not set for $key_type" );
+    is( $ak_entry->comment,   $comment,   "check comment for $key_type" );
+    is( $ak_entry->options,   '',         "options not set for $key_type" );
     is( $ak_entry->as_string, $ak_string, "$key_type stringifies properly" );
 
     $ak_string = $options . q{ } . $test_keys{$key_type}->{key};
     $ak_entry  = Config::OpenSSH::Authkey::Entry->new($ak_string);
 
-    is( $ak_entry->options, $options, "check options for $key_type" );
-    ok( !defined $ak_entry->comment, "comment not set for $key_type" );
+    is( $ak_entry->options,   $options,   "check options for $key_type" );
+    is( $ak_entry->comment,   '',         "comment not set for $key_type" );
     is( $ak_entry->as_string, $ak_string, "$key_type stringifies properly" );
 
     $ak_string =
@@ -164,7 +164,7 @@ for my $key_type ( keys %test_keys ) {
     $ak_entry =
       Config::OpenSSH::Authkey::Entry->new( $test_keys{ssh_rsa_key}->{key} );
 
-    is( $ak_entry->options, undef, 'check options() for no output' );
+    is( $ak_entry->options, '', 'check options() for no output' );
 
     my @response = $ak_entry->get_option('no-pty');
     ok( @response == 0, 'lookup unset option' );
@@ -209,7 +209,7 @@ for my $key_type ( keys %test_keys ) {
 
     # Totally clear the options
     $ak_entry->unset_option($_) for qw/no-agent-forwarding no-pty/;
-    is( $ak_entry->options, undef, 'check options() for no output again' );
+    is( $ak_entry->options, '', 'check options() for no output again' );
 
     # Duplicate option handling
     $ak_entry->options('from="127.0.0.1",no-pty,from="localhost"');

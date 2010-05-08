@@ -253,7 +253,7 @@ sub comment {
   if ( defined $comment ) {
     $self->{_comment} = $comment;
   }
-  return $self->{_comment};
+  return defined $self->{_comment} ? $self->{_comment} : '';
 }
 
 sub unset_comment {
@@ -275,9 +275,10 @@ sub options {
     $self->{_options}        = $new_options;
   }
 
-  return @{ $self->{_parsed_options} } > 0
+  my $options_str = @{ $self->{_parsed_options} } > 0
     ? $_parsed_options_as_string->($self)
     : $self->{_options};
+  return defined $options_str ? $options_str : '';
 }
 
 sub unset_options {
@@ -467,7 +468,8 @@ I strongly recommend that SSHv1 be disabled.
 
 Returns the comment, if any, of the parsed entry. ssh-keygen(1) defaults
 to C<user@host> for this field. If a string is passed, updates the
-comment to that string.
+comment to that string . If no comment is set, returns the empty string .
+
 
 =item B<unset_comment>
 
@@ -484,7 +486,7 @@ or, if passed a string, sets that string as the new option set.
   # set
   $entry->options('from="127.0.0.1",no-agent-forwarding');
 
-Returns C<undef> if no options have been set.
+Returns the empty string if no options have been set.
 
 =item B<unset_options>
 
