@@ -5,7 +5,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 87;
+use Test::More tests => 88;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey::Entry') }
 ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
@@ -164,6 +164,8 @@ for my $key_type ( keys %test_keys ) {
     $ak_entry =
       Config::OpenSSH::Authkey::Entry->new( $test_keys{ssh_rsa_key}->{key} );
 
+    is( $ak_entry->options, undef, 'check options() for no output' );
+
     my @response = $ak_entry->get_option('no-pty');
     ok( @response == 0, 'lookup unset option' );
 
@@ -207,7 +209,7 @@ for my $key_type ( keys %test_keys ) {
 
     # Totally clear the options
     $ak_entry->unset_option($_) for qw/no-agent-forwarding no-pty/;
-    is( $ak_entry->options, '', 'check options() for no output' );
+    is( $ak_entry->options, undef, 'check options() for no output again' );
 
     # Duplicate option handling
     $ak_entry->options('from="127.0.0.1",no-pty,from="localhost"');

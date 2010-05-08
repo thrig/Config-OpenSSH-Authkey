@@ -13,7 +13,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.06';
+our $VERSION = '0.10';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
@@ -31,7 +31,7 @@ my $_populate_options = sub {
   my $self = shift;
 
   return
-    if exists $self->{_parsed_options}
+    if @{ $self->{_parsed_options} } > 0
       or !exists $self->{_options}
       or length $self->{_options} == 0;
 
@@ -146,7 +146,7 @@ sub new {
   my $class = shift;
   my $data  = shift;
 
-  my $self = { _dup_of => 0 };
+  my $self = { _dup_of => 0, _parsed_options => [] };
 
   if ( defined $data ) {
     my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $data );
@@ -271,18 +271,18 @@ sub options {
   my $new_options = shift;
 
   if ( defined $new_options ) {
-    delete $self->{_parsed_options};
-    $self->{_options} = $new_options;
+    $self->{_parsed_options} = [];
+    $self->{_options}        = $new_options;
   }
 
-  return exists $self->{_parsed_options}
+  return @{ $self->{_parsed_options} } > 0
     ? $_parsed_options_as_string->($self)
     : $self->{_options};
 }
 
 sub unset_options {
   my $self = shift;
-  delete $self->{_parsed_options};
+  $self->{_parsed_options} = [];
   delete $self->{_options};
   return 1;
 }
@@ -313,7 +313,7 @@ sub set_option {
   $_populate_options->($self);
 
   my $updated      = 0;
-  my $record_count = scalar @{ $self->{_parsed_options} };
+  my $record_count = @{ $self->{_parsed_options} };
 
   for my $options_ref ( @{ $self->{_parsed_options} } ) {
     if ( $options_ref->{name} eq $option_name ) {
@@ -347,7 +347,7 @@ sub unset_option {
 
   $_populate_options->($self);
 
-  my $record_count = scalar @{ $self->{_parsed_options} };
+  my $record_count = @{ $self->{_parsed_options} };
   @{ $self->{_parsed_options} } =
     grep { $_->{name} ne $option_name } @{ $self->{_parsed_options} };
 
@@ -358,7 +358,7 @@ sub as_string {
   my $self   = shift;
   my $string = q{};
 
-  if ( exists $self->{_parsed_options} ) {
+  if ( @{ $self->{_parsed_options} } > 0 ) {
     $string .= $_parsed_options_as_string->($self) . q{ };
 
   } elsif ( exists $self->{_options} and length $self->{_options} > 0 ) {
@@ -483,6 +483,8 @@ or, if passed a string, sets that string as the new option set.
   
   # set
   $entry->options('from="127.0.0.1",no-agent-forwarding');
+
+Returns C<undef> if no options have been set.
 
 =item B<unset_options>
 
