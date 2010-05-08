@@ -5,6 +5,7 @@ Makefile.PL
 MANIFEST
 README
 META.yml
+eg/authkey-merge
 eg/ssh1-authkey-audit
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm

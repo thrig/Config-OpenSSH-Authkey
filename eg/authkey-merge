@@ -1,0 +1,29 @@
+#!/usr/bin/perl
+#
+# Example script showing a merge of authorized_keys files. Good to
+# cleanup keys from legacy ~/.ssh/authorized_keys2 files, as all keys
+# should (for OpenSSH versions >3 something) be in the
+# ~/.ssh/authorized_keys file.
+
+use strict;
+use warnings;
+
+use Config::OpenSSH::Authkey ();
+my $ak = Config::OpenSSH::Authkey->new( { tag_dups => 1 } );
+
+die "Usage: $0 file1 [file2 ..]\n" unless @ARGV;
+
+for my $file (@ARGV) {
+  $ak->file($file);
+
+  while ( my $entry = $ak->iterate ) {
+    if ( $entry->can('duplicate_of') and $entry->duplicate_of ) {
+      warn "notice: skipping duplicate key: file=$file, line=$.\n";
+      next;
+    }
+
+    print $entry->as_string, "\n";
+  }
+
+  close ARGV if eof;
+}
