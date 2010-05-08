@@ -14,7 +14,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '0.52';
+our $VERSION = '0.53';
 
 ######################################################################
 #
@@ -211,7 +211,7 @@ were consulted in the creation of this module.
 Consult the L<"OPTIONS"> section for means to customize how
 C<authorized_keys> data is handled.
 
-=head1 METHODS
+=head1 CLASS METHODS
 
 =over 4
 
@@ -224,6 +224,12 @@ alter how the instance behaves.
     tag_dups => 1,
     nostore_nonkey_data => 1,
   });
+
+=back
+
+=head1 INSTANCE METHODS
+
+=over 4
 
 =item B<fh>
 
@@ -274,9 +280,8 @@ L<Config::OpenSSH::Authkey::Entry> object.
 
 =item B<get_stored_keys>
 
-Instance method. Returns an array reference of any public keys stored in
-the instance. B<keys> will only be populated if the B<auto_store> option
-is enabled.
+Returns an array reference of any public keys stored in the instance.
+B<keys> will only be populated if the B<auto_store> option is enabled.
 
 Keys will be either C<Config::OpenSSH::Authkey::MetaEntry> (comments,
 blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.

@@ -5,10 +5,17 @@
 use strict;
 use warnings;
 
-use Test::More tests => 86;
+use Test::More tests => 87;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey::Entry') }
 ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
+
+my $options_ref = Config::OpenSSH::Authkey::Entry->split_options('b,s="v"');
+is_deeply(
+  $options_ref,
+  [ { name => 'b' }, { name => 's', value => 'v' } ],
+  'test split_options'
+);
 
 can_ok(
   'Config::OpenSSH::Authkey::Entry',
@@ -215,10 +222,10 @@ for my $key_type ( keys %test_keys ) {
 
     is( $ak_entry->options, 'from="::1",no-pty',
       'check options() for de-duplicated entries' );
-    
-    is( $ak_entry->duplicate_of, 0, 'check default for duplicate_of');
+
+    is( $ak_entry->duplicate_of, 0, 'check default for duplicate_of' );
     $ak_entry->duplicate_of(1);
-    is( $ak_entry->duplicate_of, 1, 'check that duplicate_of accpets value');
+    is( $ak_entry->duplicate_of, 1, 'check that duplicate_of accpets value' );
   };
   if ($@) {
     chomp $@;
