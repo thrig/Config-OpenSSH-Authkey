@@ -334,11 +334,13 @@ method always returns these lines, regardless of this setting.
 
 =head1 Config::OpenSSH::Authkey::MetaEntry
 
-Utility class that stores blank lines or comments. Objects of this type
-should only be created by the B<parse_fh> or B<parse_file> methods. The
-object supports an B<as_string> method that will return the line.
-Disable the parsing of this data by enabling the B<nostore_nonkey_data>
-option prior to calling a B<parse_f*> method.
+Utility class that stores blank lines or comments. The object
+supports an B<as_string> method that will return the line. Disable
+the storage of this data in the key store by enabling the
+B<nostore_nonkey_data> option.
+
+Use the C<ref> function or the C<can> method to distinguish these
+entries from L<Config::OpenSSH::Authkey::Entry> objects.
 
 =head1 BUGS
 
