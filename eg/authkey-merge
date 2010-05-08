@@ -22,7 +22,14 @@ for my $file (@ARGV) {
 
   while ( my $entry = $ak->iterate ) {
     if ( $entry->can('duplicate_of') and $entry->duplicate_of ) {
-      warn "notice: skipping duplicate key: file=$file, line=$.\n";
+      my $msg;
+      # Don't care if the comment field differs
+      if ( $entry->options eq $entry->duplicate_of->options ) {
+        $msg = 'info: skipping duplicate entry';
+      } else {
+        $msg = 'warning: skipping duplicate key with different options set';
+      }
+      warn "$msg: file=$file, line=$.\n";
       next;
     }
 
