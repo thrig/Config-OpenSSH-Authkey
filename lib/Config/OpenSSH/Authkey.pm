@@ -193,7 +193,10 @@ Config::OpenSSH::Authkey - interface to OpenSSH authorized_keys data
   use Config::OpenSSH::Authkey ();
   my $ak = Config::OpenSSH::Authkey->new;
   
-  TODO
+  $ak->file( 'authorized_keys' );
+  
+  while (my $entry = $ak->iterate) {
+    ...
 
 =head1 DESCRIPTION
 
