@@ -14,7 +14,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '0.53';
+our $VERSION = '0.54';
 
 ######################################################################
 #
@@ -249,7 +249,7 @@ Throws an exception if the file cannot be opened.
 
 Returns the next entry of the filehandle (or, lacking a filehandle in
 the instance, throws an error. Call B<fh> or B<file> first). Returned
-data will either be C<Config::OpenSSH::Authkey::MetaEntry> (comments,
+data will either be L<"Config::OpenSSH::Authkey::MetaEntry"> (comments,
 blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.
 
 For example, to exclude SSHv1 C<authorized_keys> data, while retaining
@@ -274,11 +274,11 @@ can be accessed by calling the B<get_stored_keys> method.
 =item B<parse> I<data>
 
 Attempts to parse input data, either as a comment or blank line with
-C<Config::OpenSSH::Authkey::MetaEntry>, or as a public key via
+L<"Config::OpenSSH::Authkey::MetaEntry">, or as a public key via
 L<Config::OpenSSH::Authkey::Entry>. Will throw an exception if the
 public key cannot be parsed.
 
-Returns either an C<Config::OpenSSH::Authkey::MetaEntry> or
+Returns either an L<"Config::OpenSSH::Authkey::MetaEntry"> or
 L<Config::OpenSSH::Authkey::Entry> object.
 
 =item B<get_stored_keys>
@@ -286,7 +286,7 @@ L<Config::OpenSSH::Authkey::Entry> object.
 Returns an array reference of any public keys stored in the instance.
 B<keys> will only be populated if the B<auto_store> option is enabled.
 
-Keys will be either C<Config::OpenSSH::Authkey::MetaEntry> (comments,
+Keys will be either L<"Config::OpenSSH::Authkey::MetaEntry"> (comments,
 blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.
 To avoid storing comments and blank lines, enable the
 B<nostore_nonkey_data> option before calling B<iterate> or B<consume>.
