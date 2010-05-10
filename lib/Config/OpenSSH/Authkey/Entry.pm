@@ -13,7 +13,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
