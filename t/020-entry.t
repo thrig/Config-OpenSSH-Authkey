@@ -5,7 +5,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 89;
+use Test::More tests => 90;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey::Entry') }
 ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
@@ -19,7 +19,7 @@ is_deeply(
 
 can_ok(
   'Config::OpenSSH::Authkey::Entry',
-  qw{new parse key protocol keytype as_string duplicate_of
+  qw{new parse key protocol keytype as_string duplicate_of unset_duplicate
     comment unset_comment
     options unset_options get_option set_option unset_option}
 );
@@ -230,6 +230,10 @@ for my $key_type ( keys %test_keys ) {
     is( $ak_entry->duplicate_of, 0, 'check default for duplicate_of' );
     $ak_entry->duplicate_of(1);
     is( $ak_entry->duplicate_of, 1, 'check that duplicate_of accpets value' );
+
+    $ak_entry->unset_duplicate;
+    ok( !$ak_entry->duplicate_of, 'check that duplicate cleared' );
+
   };
   if ($@) {
     chomp $@;

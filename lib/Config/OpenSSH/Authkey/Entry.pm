@@ -13,11 +13,14 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
 my $MAX_PUBKEY_BYTES = 8192;
+
+# Sanity check to ensure at least some data exists in the key field
+my $MIN_KEY_LENGTH = 42;
 
 # Delved from sshd(8), auth-options.c of OpenSSH 5.2. Insensitive match
 # required, as OpenSSH uses strncasecmp(3).
@@ -227,6 +230,29 @@ sub parse {
   return $self;
 }
 
+sub as_string {
+  my $self   = shift;
+  my $string = q{};
+
+  if ( @{ $self->{_parsed_options} } > 0 ) {
+    $string .= $_parsed_options_as_string->($self) . q{ };
+
+  } elsif ( exists $self->{_options} and length $self->{_options} > 0 ) {
+    $string .= $self->{_options} . q{ };
+  }
+
+  if ( !defined $self->{_key} or length $self->{_key} < $MIN_KEY_LENGTH ) {
+    croak('no key material present');
+  }
+  $string .= $self->{_key};
+
+  if ( exists $self->{_comment} and length $self->{_comment} > 0 ) {
+    $string .= q{ } . $self->{_comment};
+  }
+
+  return $string;
+}
+
 sub key {
   my $self = shift;
   my $key  = shift;
@@ -236,15 +262,18 @@ sub key {
       croak($err_msg);
     }
   }
+  if ( !defined $self->{_key} or length $self->{_key} < $MIN_KEY_LENGTH ) {
+    croak('no key material present');
+  }
   return $self->{_key};
 }
 
 sub protocol {
-  shift->{_protocol};
+  shift->{_protocol} || 0;
 }
 
 sub keytype {
-  shift->{_keytype};
+  shift->{_keytype} || '';
 }
 
 sub comment {
@@ -356,26 +385,6 @@ sub unset_option {
   return $record_count - @{ $self->{_parsed_options} };
 }
 
-sub as_string {
-  my $self   = shift;
-  my $string = q{};
-
-  if ( @{ $self->{_parsed_options} } > 0 ) {
-    $string .= $_parsed_options_as_string->($self) . q{ };
-
-  } elsif ( exists $self->{_options} and length $self->{_options} > 0 ) {
-    $string .= $self->{_options} . q{ };
-  }
-
-  $string .= $self->{_key};
-
-  if ( exists $self->{_comment} and length $self->{_comment} > 0 ) {
-    $string .= q{ } . $self->{_comment};
-  }
-
-  return $string;
-}
-
 sub duplicate_of {
   my $self = shift;
   my $ref  = shift;
@@ -385,6 +394,12 @@ sub duplicate_of {
   }
 
   return $self->{_dup_of};
+}
+
+sub unset_duplicate {
+  my $self = shift;
+  $self->{_dup_of} = 0;
+  return 1;
 }
 
 1;
@@ -451,6 +466,8 @@ Utility method in event data to parse was not passed to B<new>.
 Returns the public key material. If passed a string, will attempt to
 parse that string as a new key (and options, and comment, if those
 are present).
+
+Throws an exception if no key material present in the instance.
 
 =item B<keytype>
 
@@ -532,7 +549,8 @@ Deletes all occurrences of the named option.
 
 =item B<as_string>
 
-Returns the entry formatted as an OpenSSH authorized_keys line.
+Returns the entry formatted as an OpenSSH authorized_keys line. Throws
+an exception if no key material present in the instance.
 
 =item B<duplicate_of> I<optional value>
 
@@ -540,6 +558,10 @@ If supplied with an argument, stores this data in the object. Always
 returns the value of this data, which is C<0> by default. Used by
 L<Config::OpenSSH::Authkey> to track whether (and of what) a key is a
 duplicate of.
+
+=item B<unset_duplicate>
+
+Clears the duplicate status of the instance, if any.
 
 =back
 
