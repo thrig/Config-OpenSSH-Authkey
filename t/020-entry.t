@@ -5,7 +5,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 88;
+use Test::More tests => 89;
 
 BEGIN { use_ok('Config::OpenSSH::Authkey::Entry') }
 ok( defined $Config::OpenSSH::Authkey::Entry::VERSION, '$VERSION defined' );
@@ -167,7 +167,9 @@ for my $key_type ( keys %test_keys ) {
     is( $ak_entry->options, '', 'check options() for no output' );
 
     my @response = $ak_entry->get_option('no-pty');
-    ok( @response == 0, 'lookup unset option' );
+    ok( @response == 0, 'lookup unset option - list context' );
+    is( scalar $ak_entry->get_option('no-pty'),
+      '', 'lookup unset option - scalar context' );
 
     $ak_entry->set_option('no-agent-forwarding');
 

@@ -275,7 +275,8 @@ sub options {
     $self->{_options}        = $new_options;
   }
 
-  my $options_str = @{ $self->{_parsed_options} } > 0
+  my $options_str =
+    @{ $self->{_parsed_options} } > 0
     ? $_parsed_options_as_string->($self)
     : $self->{_options};
   return defined $options_str ? $options_str : '';
@@ -301,7 +302,7 @@ sub get_option {
     map { $_->{value} || $option_name }
     grep { $_->{name} eq $option_name } @{ $self->{_parsed_options} };
 
-  return wantarray ? @values : $values[0];
+  return wantarray ? @values : defined $values[0] ? $values[0] : '';
 }
 
 # Sets an option. To enable a boolean option, only supply the option
@@ -431,7 +432,7 @@ parse.
 
 =item B<split_options> I<option string>
 
-Accepts a string of comma seperated options, and parses these into a
+Accepts a string of comma separated options, and parses these into a
 list of hash references. In scalar context, returns a reference to the
 list. In list context, returns a list.
 
@@ -506,8 +507,9 @@ string value. Assuming the options have been set as shown above:
   # returns '127.0.0.1'
   $entry->get_option('from');
 
-In scalar context, only the first option is returned. In list context, a
-list of one (or rarely more) values will be returned.
+In scalar context, only the first option is returned (or the empty
+string). In list context, a list of one (or rarely more) values will be
+returned (or the empty list).
 
 =item B<set_option> I<option name>, I<optional value>
 
@@ -521,7 +523,7 @@ for that option.
   $entry->set_option(from => '127.0.0.1');
 
 If multiple options with the same name are present in the options list,
-only the first option found will be updated, and all subseqent entries
+only the first option found will be updated, and all subsequent entries
 removed from the options list.
 
 =item B<unset_option> I<option name>
