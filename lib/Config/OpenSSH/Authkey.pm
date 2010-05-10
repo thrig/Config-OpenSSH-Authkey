@@ -207,12 +207,65 @@ L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
 provides an interface to individual entries (lines) in the
 C<authorzied_keys> file.
 
+=over 4
+
+=item *
+
+The B<AUTHORIZED_KEYS
+FILE FORMAT> section of sshd(8) details the format of C<authorzied_keys> entries.
+
+=item *
+
+Consult the L<"OPTIONS"> section for means to customize how this module operates.
+
+=back
+
+=head2 Caveats
+
 This is a pure Perl interface, so may differ from how OpenSSH parses the
 C<authorzied_keys> data. The sshd(8) manual and OpenSSH 5.2 source code
-were consulted in the creation of this module.
+were consulted in the creation of this module. C<authorzied_keys> file
+options, in particular, are not checked for validity: this module will
+parse the valid C<no-pty> option along with the invalid C<asdf>. This
+makes the module future proof against options being added to OpenSSH, at
+the cost of passing potentially garbage data around.
 
-Consult the L<"OPTIONS"> section for means to customize how
-C<authorized_keys> data is handled.
+=head2 Ruminations on Managing authorized_keys Files
+
+OpenSSH C<authorized_keys> files could be managed by a user, or by a
+centralized control system, or shared between different groups using the
+same systems. Site legal or security policy may dictate how
+C<authorized_keys> must be handled: how frequently the keys must be
+rotated, whether port forwarding and so forth are permitted, whether to
+restrict keys to only run specific commands.
+
+=over 4
+
+=item *
+
+Centralized control is the easiest, as the raw keys will be stored under
+configuration management, or in a database, or directory service, and
+code will update the various supported C<authorized_keys> files,
+removing (and possibly warning about) any unknown key entries. The code
+should include a comment at the top of every managed C<authorized_keys>
+file stating that the file is managed, and linking to instructions on
+how to properly add or change keys.
+
+=item *
+
+Shared systems require caution; foreign keys must not be wiped out.
+The easiest method is to include the target C<authorized_keys> file as
+one of the sources for valid key material. A comment should be added
+into to the C<authorized_keys> file, noting what keys are managed by
+the software.
+
+=back
+
+Rotating C<authorized_keys> data is difficult, as the entries contain
+no date related metadata like X.509 certificates do. Solutions would be
+to schedule a yearly calendar event during which all the keys are
+rotated, or maintain the keys in a database that includes a creation
+date field on the record.
 
 =head1 CLASS METHODS
 
