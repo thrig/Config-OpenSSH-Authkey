@@ -486,8 +486,10 @@ I strongly recommend that SSHv1 be disabled.
 
 Returns the comment, if any, of the parsed entry. ssh-keygen(1) defaults
 to C<user@host> for this field. If a string is passed, updates the
-comment to that string . If no comment is set, returns the empty string .
+comment to that string. If no comment is set, returns the empty string.
 
+Note that OpenSSH 5.5 may truncate key comments to 72 characters if
+keys are converted to the RFC 4716 format via C<ssh-keygen -e ...>.
 
 =item B<unset_comment>
 
