@@ -14,7 +14,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '0.55';
+our $VERSION = '0.64';
 
 ######################################################################
 #
@@ -404,7 +404,8 @@ Patches that fix problems or add new features are welcome.
 
 =head1 SEE ALSO
 
-sshd(8), L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
+sshd(8), L<Config::OpenSSH::Authkey::Entry>,
+L<Config::OpenSSH::Authkey::Entry::Options>
 
 =head1 AUTHOR
 

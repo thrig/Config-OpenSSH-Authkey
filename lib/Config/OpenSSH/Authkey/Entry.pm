@@ -11,9 +11,11 @@ package Config::OpenSSH::Authkey::Entry;
 use strict;
 use warnings;
 
+use Config::OpenSSH::Authkey::Entry::Options ();
+
 use Carp qw(croak);
 
-our $VERSION = '0.12';
+our $VERSION = '0.14';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
@@ -22,44 +24,9 @@ my $MAX_PUBKEY_BYTES = 8192;
 # Sanity check to ensure at least some data exists in the key field
 my $MIN_KEY_LENGTH = 42;
 
-# Delved from sshd(8), auth-options.c of OpenSSH 5.2. Insensitive match
-# required, as OpenSSH uses strncasecmp(3).
-my $AUTHKEY_OPTION_NAME_RE = qr/(?i)[a-z0-9_-]+/;
-
 ######################################################################
 #
 # Data Parsing & Utility Methods - Internal
-
-my $_populate_options = sub {
-  my $self = shift;
-
-  return
-    if @{ $self->{_parsed_options} } > 0
-      or !exists $self->{_options}
-      or length $self->{_options} == 0;
-
-  for my $option_ref ( split_options( $self, $self->{_options} ) ) {
-    push @{ $self->{_parsed_options} },
-      {
-      name => $option_ref->{name},
-      ( exists $option_ref->{value} ? ( value => $option_ref->{value} ) : ()
-      )
-      };
-  }
-
-  return 1;
-};
-
-my $_parsed_options_as_string = sub {
-  my $self = shift;
-  return join(
-    q{,},
-    map {
-      $_->{name}
-        . ( exists $_->{value} ? '="' . $_->{value} . '"' : q{} )
-      } @{ $self->{_parsed_options} }
-  );
-};
 
 my $_parse_entry = sub {
   my $self = shift;
@@ -149,7 +116,7 @@ sub new {
   my $class = shift;
   my $data  = shift;
 
-  my $self = { _dup_of => 0, _parsed_options => [] };
+  my $self = { _dup_of => 0 };
 
   if ( defined $data ) {
     my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $data );
@@ -163,55 +130,8 @@ sub new {
 }
 
 sub split_options {
-  my $class         = shift;
-  my $option_string = shift;
-  my @options;
-
-  # Inspected OpenSSH auth-options.c,v 1.44 to derive this lexer:
-  #
-  # In OpenSSH, unparsable options result in a call to bad_options and
-  # the entry being rejected. This module is more permissive, in that
-  # any option name is allowed, regardless of whether OpenSSH supports
-  # such an option or whether the option is the correct type (boolean
-  # vs. string value). This makes the module more future proof, at the
-  # cost of allowing garbage through.
-  #
-  # Options are stored using a list of hashrefs, which allows for
-  # duplicate options, and preserves the order of options. Also, an
-  # index is maintained to speed lookups of the data, and to note if
-  # duplicate options exist. This is due to inconsistent handling by
-  # OpenSSH_5.1p1 of command="" vs. from="" vs. environment="" options
-  # when multiple entries are present. Methods are offered to detect and
-  # cleanup such (hopefully rare) duplicate options.
-
-OPTION_LEXER: {
-    # String Argument Options - value is a perhaps empty string enclosed
-    # in double quotes. Internal double quotes are allowed, but only if
-    # these are preceded by a backslash.
-    if (
-      $option_string =~ m/ \G ($AUTHKEY_OPTION_NAME_RE)="( (?: \\"|[^"] )*? )"
-        (?:,|[ \t]+)? /cgx
-      ) {
-      my $option_name = $1;
-      my $option_value = $2 || q{};
-
-      push @options, { name => $option_name, value => $option_value };
-
-      redo OPTION_LEXER;
-    }
-
-    # Boolean options - mere presence enables them in OpenSSH
-    if (
-      $option_string =~ m/ \G ($AUTHKEY_OPTION_NAME_RE) (?:,|[ \t]+)? /cgx ) {
-      my $option_name = $1;
-
-      push @options, { name => $option_name };
-
-      redo OPTION_LEXER;
-    }
-  }
-
-  return wantarray ? @options : \@options;
+  my $class = shift;
+  Config::OpenSSH::Authkey::Entry::Options->split_options(@_);
 }
 
 ######################################################################
@@ -234,8 +154,8 @@ sub as_string {
   my $self   = shift;
   my $string = q{};
 
-  if ( @{ $self->{_parsed_options} } > 0 ) {
-    $string .= $_parsed_options_as_string->($self) . q{ };
+  if ( exists $self->{_parsed_options} ) {
+    $string .= $self->{_parsed_options}->as_string . q{ };
 
   } elsif ( exists $self->{_options} and length $self->{_options} > 0 ) {
     $string .= $self->{_options} . q{ };
@@ -300,89 +220,55 @@ sub options {
   my $new_options = shift;
 
   if ( defined $new_options ) {
-    $self->{_parsed_options} = [];
-    $self->{_options}        = $new_options;
+    delete $self->{_parsed_options};
+    $self->{_options} = $new_options;
   }
 
   my $options_str =
-    @{ $self->{_parsed_options} } > 0
-    ? $_parsed_options_as_string->($self)
+    exists $self->{_parsed_options}
+    ? $self->{_parsed_options}->as_string
     : $self->{_options};
   return defined $options_str ? $options_str : '';
 }
 
 sub unset_options {
   my $self = shift;
-  $self->{_parsed_options} = [];
+  delete $self->{_parsed_options};
   delete $self->{_options};
   return 1;
 }
 
-# NOTE - boolean return the name of the option, while string value
-# options the string. This may change, depending on how I like how this
-# is handled...
 sub get_option {
-  my $self        = shift;
-  my $option_name = shift;
+  my $self = shift;
 
-  $_populate_options->($self);
+  if ( !exists $self->{_parsed_options} ) {
+    $self->{_parsed_options} =
+      Config::OpenSSH::Authkey::Entry::Options->new( $self->{_options} );
+  }
 
-  my @values =
-    map { $_->{value} || $option_name }
-    grep { $_->{name} eq $option_name } @{ $self->{_parsed_options} };
-
-  return wantarray ? @values : defined $values[0] ? $values[0] : '';
+  $self->{_parsed_options}->get_option(@_);
 }
 
-# Sets an option. To enable a boolean option, only supply the option
-# name, and pass no value data.
 sub set_option {
-  my $self         = shift;
-  my $option_name  = shift || croak('set_option requires an option name');
-  my $option_value = shift;
+  my $self = shift;
 
-  $_populate_options->($self);
-
-  my $updated      = 0;
-  my $record_count = @{ $self->{_parsed_options} };
-
-  for my $options_ref ( @{ $self->{_parsed_options} } ) {
-    if ( $options_ref->{name} eq $option_name ) {
-      $options_ref->{value} = $option_value if defined $option_value;
-      ++$updated;
-    }
-  }
-  if ( $updated == 0 ) {
-    push @{ $self->{_parsed_options} },
-      {
-      name => $option_name,
-      ( defined $option_value ? ( value => $option_value ) : () )
-      };
-  } elsif ( $updated > 1 ) {
-    # KLUGE edge-case where duplicate entries exist for this option. Clear
-    # all duplicates beyond the first entry.
-    my $seen = 0;
-    @{ $self->{_parsed_options} } = grep {
-           $_->{name} ne $option_name
-        or $_->{name} eq $option_name
-        && !$seen++
-    } @{ $self->{_parsed_options} };
+  if ( !exists $self->{_parsed_options} ) {
+    $self->{_parsed_options} =
+      Config::OpenSSH::Authkey::Entry::Options->new( $self->{_options} );
   }
 
-  return $record_count - @{ $self->{_parsed_options} };
+  $self->{_parsed_options}->set_option(@_);
 }
 
 sub unset_option {
-  my $self        = shift;
-  my $option_name = shift;
+  my $self = shift;
 
-  $_populate_options->($self);
+  if ( !exists $self->{_parsed_options} ) {
+    $self->{_parsed_options} =
+      Config::OpenSSH::Authkey::Entry::Options->new( $self->{_options} );
+  }
 
-  my $record_count = @{ $self->{_parsed_options} };
-  @{ $self->{_parsed_options} } =
-    grep { $_->{name} ne $option_name } @{ $self->{_parsed_options} };
-
-  return $record_count - @{ $self->{_parsed_options} };
+  $self->{_parsed_options}->unset_option(@_);
 }
 
 sub duplicate_of {
@@ -434,7 +320,8 @@ FILE FORMAT> section of sshd(8) details the format of these lines. I use
 the term entry to mean a line from an C<authorized_keys> file.
 
 Errors are thrown via C<die> or C<croak>, notably when parsing an entry
-via the B<new> or B<key> methods.
+via the B<new> or B<key> methods. Some of the options handling is
+provided by L<Config::OpenSSH::Authkey::Entry::Options>.
 
 =head1 CLASS METHODS
 
