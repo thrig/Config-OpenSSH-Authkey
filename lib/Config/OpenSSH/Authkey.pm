@@ -4,8 +4,6 @@
 
 package Config::OpenSSH::Authkey;
 
-require 5.006;
-
 use strict;
 use warnings;
 
@@ -14,7 +12,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '0.64';
+our $VERSION = '0.65';
 
 ######################################################################
 #
