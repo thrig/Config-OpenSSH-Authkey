@@ -12,7 +12,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '0.65';
+our $VERSION = '0.99';
 
 ######################################################################
 #
