@@ -407,7 +407,7 @@ L<Config::OpenSSH::Authkey::Entry::Options>
 
 =head1 AUTHOR
 
-Jeremy Mates, E<lt>jmates@sial.orgE<gt>
+Jeremy Mates, E<lt>jmates@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
