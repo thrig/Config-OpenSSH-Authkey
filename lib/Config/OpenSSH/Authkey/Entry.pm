@@ -15,7 +15,7 @@ use Config::OpenSSH::Authkey::Entry::Options ();
 
 use Carp qw(croak);
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
@@ -463,7 +463,7 @@ Patches that fix problems or add new features are welcome.
 
 =head1 SEE ALSO
 
-sshd(8), ssh-keygen(1), L<Config::OpenSSH::Authkey|Config::OpenSSH::Authkey>
+sshd(8), ssh-keygen(1), L<Config::OpenSSH::Authkey>
 
 =head1 AUTHOR
 
@@ -471,7 +471,7 @@ Jeremy Mates, E<lt>jmates@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright 2009-2010 by Jeremy Mates.
+Copyright 2009-2010,2012 by Jeremy Mates.
 
 This program is free software; you can redistribute it and/or modify it
 under the Artistic license.

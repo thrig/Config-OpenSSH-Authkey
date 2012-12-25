@@ -12,7 +12,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '0.99';
+our $VERSION = '1.01';
 
 ######################################################################
 #
@@ -200,21 +200,20 @@ Config::OpenSSH::Authkey - interface to OpenSSH authorized_keys data
 
 This module provides an interface to the entries in an OpenSSH
 C<authorzied_keys> file. Both SSH1 and SSH2 protocol public keys are
-supported.
-L<Config::OpenSSH::Authkey::Entry|Config::OpenSSH::Authkey::Entry>
-provides an interface to individual entries (lines) in the
-C<authorzied_keys> file.
+supported. L<Config::OpenSSH::Authkey::Entry> provides an interface to
+individual entries (lines) in the C<authorzied_keys> file.
 
 =over 4
 
 =item *
 
-The B<AUTHORIZED_KEYS
-FILE FORMAT> section of sshd(8) details the format of C<authorzied_keys> entries.
+The B<AUTHORIZED_KEYS FILE FORMAT> section of sshd(8) details the format
+of C<authorzied_keys> entries.
 
 =item *
 
-Consult the L<"OPTIONS"> section for means to customize how this module operates.
+Consult the L</"OPTIONS"> section for means to customize how this
+module operates.
 
 =back
 
@@ -271,8 +270,8 @@ date field on the record.
 
 =item B<new>
 
-Constructor method. Accepts a hash reference containing L<"OPTIONS"> that
-alter how the instance behaves.
+Constructor method. Accepts a hash reference containing L</"OPTIONS">
+that alter how the instance behaves.
 
   my $ak = Config::OpenSSH::Authkey->new({
     tag_dups => 1,
@@ -300,7 +299,7 @@ Throws an exception if the file cannot be opened.
 
 Returns the next entry of the filehandle (or, lacking a filehandle in
 the instance, throws an error. Call B<fh> or B<file> first). Returned
-data will either be L<"Config::OpenSSH::Authkey::MetaEntry"> (comments,
+data will either be L<Config::OpenSSH::Authkey::MetaEntry> (comments,
 blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.
 
 For example, to exclude SSHv1 C<authorized_keys> data, while retaining
@@ -325,11 +324,11 @@ can be accessed by calling the B<get_stored_keys> method.
 =item B<parse> I<data>
 
 Attempts to parse input data, either as a comment or blank line with
-L<"Config::OpenSSH::Authkey::MetaEntry">, or as a public key via
+L"Config::OpenSSH::Authkey::MetaEntry>, or as a public key via
 L<Config::OpenSSH::Authkey::Entry>. Will throw an exception if the
 public key cannot be parsed.
 
-Returns either an L<"Config::OpenSSH::Authkey::MetaEntry"> or
+Returns either an L<Config::OpenSSH::Authkey::MetaEntry> or
 L<Config::OpenSSH::Authkey::Entry> object.
 
 =item B<get_stored_keys>
@@ -337,7 +336,7 @@ L<Config::OpenSSH::Authkey::Entry> object.
 Returns an array reference of any public keys stored in the instance.
 B<keys> will only be populated if the B<auto_store> option is enabled.
 
-Keys will be either L<"Config::OpenSSH::Authkey::MetaEntry"> (comments,
+Keys will be either L<Config::OpenSSH::Authkey::MetaEntry> (comments,
 blank lines) or L<Config::OpenSSH::Authkey::Entry> (public key) objects.
 To avoid storing comments and blank lines, enable the
 B<nostore_nonkey_data> option before calling B<iterate> or B<consume>.
@@ -411,7 +410,7 @@ Jeremy Mates, E<lt>jmates@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright 2009-2010 by Jeremy Mates.
+Copyright 2009-2010,2012 by Jeremy Mates.
 
 This program is free software; you can redistribute it and/or modify it
 under the Artistic license.

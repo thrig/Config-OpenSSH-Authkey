@@ -1,18 +1,36 @@
-use inc::Module::Install;
-name 'Config-OpenSSH-Authkey';
-all_from 'lib/Config/OpenSSH/Authkey.pm';
-license 'artistic';
+use strict;
+use warnings;
+use ExtUtils::MakeMaker;
 
-perl_version '5.006';
-requires 'Carp'            => 0;
-requires 'IO::Handle'      => 0;
-test_requires 'Test::More' => 0;
+my %params = (
+  NAME         => 'Config::OpenSSH::Authkey',
+  VERSION_FROM => 'lib/Config/OpenSSH/Authkey.pm',
+  PREREQ_PM    => {
+    'Carp'       => 0,
+    'IO::Handle' => 0,
+    'Test::More' => 0,
+  },
+  ( $] >= 5.005
+    ? (
+      ABSTRACT_FROM => 'lib/Config/OpenSSH/Authkey.pm',
+      AUTHOR        => 'Jeremy Mates <jmates@cpan.org>'
+      )
+    : ()
+  ),
+);
 
-resources
-  license    => 'http://dev.perl.org/licenses/artistic.html',
-  repository => 'http://github.com/thrig/Config-OpenSSH-Authkey',
-  bugtracker =>
-  'https://rt.cpan.org/Public/Dist/Display.html?Name=Config-OpenSSH-Authkey';
+if ( $ExtUtils::MakeMaker::VERSION =~ /^\d\.\d\d$/ and $ExtUtils::MakeMaker::VERSION > 6.30 ) {
+  $params{LICENSE} = 'perl';
+}
 
-WriteAll;
+if ( $ExtUtils::MakeMaker::VERSION ge '6.46' ) {
+  $params{META_MERGE} = {
+    resources => {
+      homepage   => 'https://github.com/thrig/Config-OpenSSH-Authkey',
+      license    => 'http://dev.perl.org/licenses/',
+      repository => 'https://github.com/thrig/Config-OpenSSH-Authkey',
+    }
+  };
+}
 
+WriteMakefile(%params);
