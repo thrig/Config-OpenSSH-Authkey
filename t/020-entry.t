@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!perl
 #
 # Tests for Config::OpenSSH::Authkey::Entry.
 
