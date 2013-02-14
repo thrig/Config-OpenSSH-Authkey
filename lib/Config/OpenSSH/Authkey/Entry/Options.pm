@@ -9,7 +9,7 @@ package Config::OpenSSH::Authkey::Entry::Options;
 use strict;
 use warnings;
 
-use Carp qw(croak);
+use Carp qw/croak/;
 
 our $VERSION = '0.14';
 
@@ -119,7 +119,7 @@ sub as_string {
 # is handled...
 sub get_option {
   my $self = shift;
-  my $option_name = shift || croak('get_option requires an option name');
+  my $option_name = shift || croak 'get_option requires an option name';
 
   my @values =
     map { $_->{value} || $option_name }
@@ -136,7 +136,7 @@ sub get_options {
 # name, and pass no value data.
 sub set_option {
   my $self         = shift;
-  my $option_name  = shift || croak('set_option requires an option name');
+  my $option_name  = shift || croak 'set_option requires an option name';
   my $option_value = shift;
 
   my $updated      = 0;
@@ -170,7 +170,7 @@ sub set_option {
 
 sub unset_option {
   my $self = shift;
-  my $option_name = shift || croak('unset_option requires an option name');
+  my $option_name = shift || croak 'unset_option requires an option name';
 
   my $record_count = @{ $self->{_options} };
   @{ $self->{_options} } =

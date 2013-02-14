@@ -13,7 +13,7 @@ use warnings;
 
 use Config::OpenSSH::Authkey::Entry::Options ();
 
-use Carp qw(croak);
+use Carp qw/croak/;
 
 our $VERSION = '0.15';
 
@@ -121,7 +121,7 @@ sub new {
   if ( defined $data ) {
     my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $data );
     if ( !$is_parsed ) {
-      croak($err_msg);
+      croak $err_msg;
     }
   }
 
@@ -140,11 +140,11 @@ sub split_options {
 
 sub parse {
   my $self = shift;
-  my $data = shift || croak('no data supplied to parse');
+  my $data = shift || croak 'no data supplied to parse';
 
   my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $data );
   if ( !$is_parsed ) {
-    croak($err_msg);
+    croak $err_msg;
   }
 
   return $self;
@@ -162,7 +162,7 @@ sub as_string {
   }
 
   if ( !defined $self->{_key} or length $self->{_key} < $MIN_KEY_LENGTH ) {
-    croak('no key material present');
+    croak 'no key material present';
   }
   $string .= $self->{_key};
 
@@ -179,11 +179,11 @@ sub key {
   if ( defined $key ) {
     my ( $is_parsed, $err_msg ) = $_parse_entry->( $self, $key );
     if ( !$is_parsed ) {
-      croak($err_msg);
+      croak $err_msg;
     }
   }
   if ( !defined $self->{_key} or length $self->{_key} < $MIN_KEY_LENGTH ) {
-    croak('no key material present');
+    croak 'no key material present';
   }
   return $self->{_key};
 }

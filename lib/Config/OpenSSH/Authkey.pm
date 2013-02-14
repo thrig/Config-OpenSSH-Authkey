@@ -7,7 +7,7 @@ package Config::OpenSSH::Authkey;
 use strict;
 use warnings;
 
-use Carp qw(croak);
+use Carp qw/croak/;
 use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
@@ -66,7 +66,7 @@ sub new {
 
 sub fh {
   my $self = shift;
-  my $fh = shift || croak('fh requires a filehandle');
+  my $fh = shift || croak 'fh requires a filehandle';
 
   $self->{_fh} = $fh;
   return $self;
@@ -74,10 +74,10 @@ sub fh {
 
 sub file {
   my $self = shift;
-  my $file = shift || croak('file requires a file');
+  my $file = shift || croak 'file requires a file';
 
   my $fh;
-  open( $fh, '<', $file ) or croak($!);
+  open( $fh, '<', $file ) or croak $!;
   $self->{_fh} = $fh;
 
   return $self;
@@ -85,7 +85,7 @@ sub file {
 
 sub iterate {
   my $self = shift;
-  croak('no filehandle to iterate on') if !defined $self->{_fh};
+  croak 'no filehandle to iterate on' if !defined $self->{_fh};
 
   my $line = $self->{_fh}->getline;
   return defined $line ? $self->parse($line) : ();
@@ -93,7 +93,7 @@ sub iterate {
 
 sub consume {
   my $self = shift;
-  croak('no filehandle to consume') if !defined $self->{_fh};
+  croak 'no filehandle to consume' if !defined $self->{_fh};
 
   my $old_auto_store = $self->auto_store();
   $self->auto_store(1);
@@ -109,7 +109,7 @@ sub consume {
 
 sub parse {
   my $self = shift;
-  my $data = shift || croak('need data to parse');
+  my $data = shift || croak 'need data to parse';
 
   my $entry;
 
