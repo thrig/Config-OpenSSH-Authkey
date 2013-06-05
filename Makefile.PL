@@ -1,3 +1,5 @@
+#!perl
+
 use strict;
 use warnings;
 use ExtUtils::MakeMaker;
@@ -31,6 +33,10 @@ if ( $ExtUtils::MakeMaker::VERSION ge '6.46' ) {
       repository => 'https://github.com/thrig/Config-OpenSSH-Authkey',
     }
   };
+}
+
+if ( $ExtUtils::MakeMaker::VERSION ge '6.48' ) {
+  $params{MIN_PERL_VERSION} = 5.000000;
 }
 
 WriteMakefile(%params);
