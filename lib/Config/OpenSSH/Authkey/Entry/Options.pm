@@ -11,7 +11,7 @@ use warnings;
 
 use Carp qw/croak/;
 
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 
 # Delved from sshd(8), auth-options.c of OpenSSH 5.2. Insensitive match
 # required, as OpenSSH uses strncasecmp(3).

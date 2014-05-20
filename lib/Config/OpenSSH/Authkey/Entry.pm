@@ -15,7 +15,7 @@ use Config::OpenSSH::Authkey::Entry::Options ();
 
 use Carp qw/croak/;
 
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.

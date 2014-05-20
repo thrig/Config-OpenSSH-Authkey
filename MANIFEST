@@ -14,3 +14,4 @@ t/040-authkey.t
 t/042-options.t
 t/authorized_keys
 t/pod.t
+SIGNATURE
