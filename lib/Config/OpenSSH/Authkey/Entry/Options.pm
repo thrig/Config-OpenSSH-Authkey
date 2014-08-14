@@ -300,7 +300,7 @@ sshd(8), ssh-keygen(1), L<Config::OpenSSH::Authkey::Entry>
 
 =head1 AUTHOR
 
-Jeremy Mates, E<lt>jmates@cpan.orgE<gt>
+thrig - Jeremy Mates (cpan:JMATES) C<< <jmates at cpan.org> >>
 
 =head1 COPYRIGHT
 
