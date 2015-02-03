@@ -8,6 +8,7 @@
 
 package Config::OpenSSH::Authkey::Entry;
 
+use 5.006000;
 use strict;
 use warnings;
 
@@ -15,7 +16,7 @@ use Config::OpenSSH::Authkey::Entry::Options ();
 
 use Carp qw/croak/;
 
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 
 # This limit is set for various things under OpenSSH code. Used here to
 # limit length of authorized_keys lines.
@@ -471,9 +472,9 @@ thrig - Jeremy Mates (cpan:JMATES) C<< <jmates at cpan.org> >>
 
 =head1 COPYRIGHT
 
-Copyright 2009-2010,2012 by Jeremy Mates.
+Copyright 2009-2010,2012,2015 by Jeremy Mates.
 
-This program is free software; you can redistribute it and/or modify it
-under the Artistic license.
+This module is free software; you can redistribute it and/or modify it
+under the Artistic License (2.0).
 
 =cut

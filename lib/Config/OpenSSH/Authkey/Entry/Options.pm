@@ -6,12 +6,13 @@
 
 package Config::OpenSSH::Authkey::Entry::Options;
 
+use 5.006000;
 use strict;
 use warnings;
 
 use Carp qw/croak/;
 
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 
 # Delved from sshd(8), auth-options.c of OpenSSH 5.2. Insensitive match
 # required, as OpenSSH uses strncasecmp(3).
@@ -304,9 +305,9 @@ thrig - Jeremy Mates (cpan:JMATES) C<< <jmates at cpan.org> >>
 
 =head1 COPYRIGHT
 
-Copyright 2010 by Jeremy Mates.
+Copyright 2010,2015 by Jeremy Mates.
 
-This program is free software; you can redistribute it and/or modify it
-under the Artistic license.
+This module is free software; you can redistribute it and/or modify it
+under the Artistic License (2.0).
 
 =cut

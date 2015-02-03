@@ -4,6 +4,7 @@
 
 package Config::OpenSSH::Authkey;
 
+use 5.006000;
 use strict;
 use warnings;
 
@@ -12,7 +13,7 @@ use Config::OpenSSH::Authkey::Entry ();
 
 use IO::Handle qw(getline);
 
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 
 ######################################################################
 #
@@ -399,6 +400,8 @@ No known bugs. Newer versions of this module may be available from CPAN.
 If the bug is in the latest version, send a report to the author.
 Patches that fix problems or add new features are welcome.
 
+http://github.com/thrig/Config-OpenSSH-Authkey
+
 =head1 SEE ALSO
 
 sshd(8), L<Config::OpenSSH::Authkey::Entry>,
@@ -410,9 +413,9 @@ thrig - Jeremy Mates (cpan:JMATES) C<< <jmates at cpan.org> >>
 
 =head1 COPYRIGHT
 
-Copyright 2009-2010,2012 by Jeremy Mates.
+Copyright 2009-2010,2012,2015 by Jeremy Mates.
 
-This program is free software; you can redistribute it and/or modify it
-under the Artistic license.
+This module is free software; you can redistribute it and/or modify it
+under the Artistic License (2.0).
 
 =cut
